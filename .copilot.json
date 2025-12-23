@@ -1,0 +1,86 @@
+{
+  "name": "WorkItems-Service-Cloud-Integration-Lab",
+  "description": "Salesforce SFDX project with LWC, Apex, and custom metadata",
+  "version": "1.0.0",
+  "rules": {
+    "apex": {
+      "sharing_model": {
+        "required": true,
+        "description": "Every Apex class with SOQL/DML must have 'with sharing', 'without sharing', or 'inherited sharing'",
+        "examples": [
+          "public without sharing class FeatureFlags { }",
+          "public with sharing class AccountService { }"
+        ]
+      },
+      "crud_validation": {
+        "required": true,
+        "description": "Validate CRUD permissions before any SOQL/DML operation",
+        "example": "if (!SObjectType.Account.isAccessible()) { return null; }"
+      },
+      "debug_statements": {
+        "required": false,
+        "description": "Avoid System.debug() in production code. Use logging framework instead.",
+        "impact": "Performance penalty in batch jobs"
+      },
+      "soql_centralization": {
+        "required": true,
+        "description": "Keep all SOQL/DML in dedicated, testable methods",
+        "benefit": "Easy to mock, single point of maintenance"
+      },
+      "test_visible": {
+        "required": true,
+        "description": "Mark test-only methods and members with @TestVisible",
+        "reason": "Ensures test isolation without exposing in production"
+      },
+      "safe_fallbacks": {
+        "required": true,
+        "description": "Provide safe default values when configuration/data is missing",
+        "benefit": "App never crashes due to missing config"
+      },
+      "javadoc_description": {
+        "required": true,
+        "description": "Add @description tag to every method JavaDoc",
+        "minimum_coverage": "100%"
+      },
+      "caching": {
+        "required": true,
+        "description": "Cache expensive operations (metadata queries, describe results)",
+        "governor_limit": "100 SOQL queries per transaction"
+      },
+      "trailing_whitespace": {
+        "required": false,
+        "description": "Remove trailing spaces at end of lines"
+      },
+      "describe_options": {
+        "required": true,
+        "description": "Use SObjectDescribeOptions.DEFERRED for lazy-loading",
+        "impact": "Improves performance by avoiding eager loading of child relationships"
+      }
+    },
+    "testing": {
+      "coverage_minimum": 80,
+      "test_naming": "ClassNameTest",
+      "method_naming": "test[Scenario]",
+      "assertion_style": "Assert.isTrue(...)",
+      "isolation": "Use @TestVisible resetCache() for test cleanup"
+    },
+    "code_style": {
+      "indent": 4,
+      "line_length": 120,
+      "comments": "// for inline, /** */ for block comments"
+    }
+  },
+  "file_structure": {
+    "apex_classes": "force-app/main/default/classes/",
+    "lwc_components": "force-app/main/default/lwc/",
+    "custom_metadata": "force-app/main/default/customMetadata/",
+    "tests": "force-app/main/default/classes/[core|api|...]/"
+  },
+  "api_version": 65.0,
+  "salesforce_org": "devEdition",
+  "git": {
+    "branch": "develop",
+    "remote": "origin",
+    "repository": "https://github.com/hamza1345/WorkItems-Service-Cloud-Integration-Lab.git"
+  }
+}
