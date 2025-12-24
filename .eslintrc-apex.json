@@ -1,0 +1,23 @@
+{
+  "rules": {
+    "apex/no-sharing-violations": "error",
+    "apex/crud-violation": "error",
+    "apex/avoid-debug-statements": "warn",
+    "apex/missing-javadoc": "warn",
+    "apex/trailing-whitespace": "error",
+    "apex/no-eager-describe": "warn",
+    "apex/no-hardcoded-ids": "error",
+    "apex/no-hardcoded-urls": "warn",
+    "apex/cyclomatic-complexity": "warn",
+    "apex/cognitive-complexity": "warn"
+  },
+  "overrides": [
+    {
+      "files": ["**/*Test.cls"],
+      "rules": {
+        "apex/missing-javadoc": "off",
+        "apex/avoid-debug-statements": "off"
+      }
+    }
+  ]
+}
