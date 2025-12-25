@@ -20,8 +20,7 @@ public with sharing class WorkItemSelector {
    * @param workItemId Id to query
    * @return Work item record or null if not found/not accessible
    */
-  @TestVisible
-  private static Work_Item__c getById(Id workItemId) {
+  public static Work_Item__c getById(Id workItemId) {
     try {
       // CRUD validation
       if (!Work_Item__c.sObjectType.getDescribe(SObjectDescribeOptions.DEFERRED).isAccessible()) {
@@ -35,7 +34,6 @@ public with sharing class WorkItemSelector {
           Name,
           Status__c,
           Description__c,
-          Assigned_To__c,
           Due_Date__c
         FROM Work_Item__c
         WHERE Id = :workItemId
@@ -54,8 +52,7 @@ public with sharing class WorkItemSelector {
    * @param workItemIds Set of Ids to query
    * @return List of work items
    */
-  @TestVisible
-  private static List<Work_Item__c> getByIds(List<Id> workItemIds) {
+  public static List<Work_Item__c> getByIds(List<Id> workItemIds) {
     try {
       if (!Work_Item__c.sObjectType.getDescribe(SObjectDescribeOptions.DEFERRED).isAccessible()) {
         LOGGER.warn('getByIds', 'No read access to Work_Item__c');
@@ -72,7 +69,6 @@ public with sharing class WorkItemSelector {
           Name,
           Status__c,
           Description__c,
-          Assigned_To__c,
           Due_Date__c
         FROM Work_Item__c
         WHERE Id IN :workItemIds
@@ -84,25 +80,22 @@ public with sharing class WorkItemSelector {
   }
 
   /**
-   * @description Get all work items for a user.
-   * @param userId Id of assigned user
+   * @description Get all work items ordered by creation date.
    * @return List of work items
    */
-  @TestVisible
-  private static List<Work_Item__c> getByAssignedUser(Id userId) {
+  public static List<Work_Item__c> getAll() {
     try {
       if (!Work_Item__c.sObjectType.getDescribe(SObjectDescribeOptions.DEFERRED).isAccessible()) {
         return new List<Work_Item__c>();
       }
 
       return [
-        SELECT Id, Name, Status__c, Description__c, Assigned_To__c, Due_Date__c
+        SELECT Id, Name, Status__c, Description__c, Due_Date__c
         FROM Work_Item__c
-        WHERE Assigned_To__c = :userId
-        ORDER BY Due_Date__c ASC
+        ORDER BY CreatedDate DESC
       ];
     } catch (Exception e) {
-      LOGGER.error('getByAssignedUser', 'Query failed for user: ' + userId, e);
+      LOGGER.error('getAll', 'Query failed', e);
       return new List<Work_Item__c>();
     }
   }
@@ -112,15 +105,14 @@ public with sharing class WorkItemSelector {
    * @param status Status value (e.g., 'In_Progress')
    * @return List of work items
    */
-  @TestVisible
-  private static List<Work_Item__c> getByStatus(String status) {
+  public static List<Work_Item__c> getByStatus(String status) {
     try {
       if (!Work_Item__c.sObjectType.getDescribe(SObjectDescribeOptions.DEFERRED).isAccessible()) {
         return new List<Work_Item__c>();
       }
 
       return [
-        SELECT Id, Name, Status__c, Description__c, Assigned_To__c, Due_Date__c
+        SELECT Id, Name, Status__c, Description__c, Due_Date__c
         FROM Work_Item__c
         WHERE Status__c = :status
       ];
@@ -135,8 +127,7 @@ public with sharing class WorkItemSelector {
    * @param days Number of days from today
    * @return List of work items
    */
-  @TestVisible
-  private static List<Work_Item__c> getDueWithinDays(Integer days) {
+  public static List<Work_Item__c> getDueWithinDays(Integer days) {
     try {
       if (!Work_Item__c.sObjectType.getDescribe(SObjectDescribeOptions.DEFERRED).isAccessible()) {
         return new List<Work_Item__c>();
@@ -145,7 +136,7 @@ public with sharing class WorkItemSelector {
       Date dueDate = System.today().addDays(days);
 
       return [
-        SELECT Id, Name, Status__c, Due_Date__c, Assigned_To__c
+        SELECT Id, Name, Status__c, Due_Date__c
         FROM Work_Item__c
         WHERE Due_Date__c <= :dueDate AND Status__c != 'Done'
         ORDER BY Due_Date__c ASC
@@ -161,8 +152,7 @@ public with sharing class WorkItemSelector {
    * @param externalIds Set of external Ids
    * @return Map of external Id -> Work Item
    */
-  @TestVisible
-  private static Map<String, Work_Item__c> getByExternalId(Set<String> externalIds) {
+  public static Map<String, Work_Item__c> getByExternalId(Set<String> externalIds) {
     Map<String, Work_Item__c> resultMap = new Map<String, Work_Item__c>();
 
     try {
@@ -175,13 +165,13 @@ public with sharing class WorkItemSelector {
       }
 
       List<Work_Item__c> results = [
-        SELECT Id, Name, Status__c, External_Id__c
+        SELECT Id, Name, Status__c
         FROM Work_Item__c
-        WHERE External_Id__c IN :externalIds
+        WHERE Id IN :externalIds
       ];
 
       for (Work_Item__c item : results) {
-        resultMap.put(item.External_Id__c, item);
+        resultMap.put(item.Id, item);
       }
 
       return resultMap;
@@ -195,8 +185,7 @@ public with sharing class WorkItemSelector {
    * @description Count work items by status.
    * @return Map of status -> count
    */
-  @TestVisible
-  private static Map<String, Integer> countByStatus() {
+  public static Map<String, Integer> countByStatus() {
     Map<String, Integer> resultMap = new Map<String, Integer>();
 
     try {

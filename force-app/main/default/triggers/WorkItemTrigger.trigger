@@ -12,19 +12,17 @@ trigger WorkItemTrigger on Work_Item__c(
   before delete,
   after delete
 ) {
-  WorkItemTriggerHandler handler = new WorkItemTriggerHandler();
-
   if (Trigger.isBefore && Trigger.isInsert) {
-    handler.handleBeforeInsert(Trigger.new);
+    WorkItemTriggerHandler.handleBeforeInsert(Trigger.new);
   } else if (Trigger.isAfter && Trigger.isInsert) {
-    handler.handleAfterInsert(Trigger.new);
+    WorkItemTriggerHandler.handleAfterInsert(Trigger.new);
   } else if (Trigger.isBefore && Trigger.isUpdate) {
-    handler.handleBeforeUpdate(Trigger.new, Trigger.old, Trigger.newMap, Trigger.oldMap);
+    WorkItemTriggerHandler.handleBeforeUpdate(Trigger.new, Trigger.old, Trigger.newMap, Trigger.oldMap);
   } else if (Trigger.isAfter && Trigger.isUpdate) {
-    handler.handleAfterUpdate(Trigger.new, Trigger.old, Trigger.newMap, Trigger.oldMap);
+    WorkItemTriggerHandler.handleAfterUpdate(Trigger.new, Trigger.old, Trigger.newMap, Trigger.oldMap);
   } else if (Trigger.isBefore && Trigger.isDelete) {
-    handler.handleBeforeDelete(Trigger.old);
+    WorkItemTriggerHandler.handleBeforeDelete(Trigger.old);
   } else if (Trigger.isAfter && Trigger.isDelete) {
-    handler.handleAfterDelete(Trigger.old);
+    WorkItemTriggerHandler.handleAfterDelete(Trigger.old);
   }
 }
