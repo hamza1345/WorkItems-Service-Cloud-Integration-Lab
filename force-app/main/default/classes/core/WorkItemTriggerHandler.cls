@@ -1,57 +1,200 @@
 /**
  * @author Hamza Amari
  * @date 24/12/2025
- * @description Handler for WorkItemTrigger events.
- * Responsibilities:
- * - Route trigger events to appropriate service methods
- * - Ensure bulkified operations (no SOQL in loops)
- * - Manage transaction flow and error handling
+ * @description Gestionnaire pour les événements du déclencheur WorkItemTrigger.
+ * Responsabilités :
+ * - Acheminer les événements du déclencheur vers les méthodes de service appropriées
+ * - Assurer les opérations bulkifiées (pas de SOQL dans les boucles)
+ * - Gérer le flux des transactions et la gestion des erreurs
+ * - Prévenir les exécutions récursives du déclencheur par contexte
  *
- * Trigger Events Handled:
- * - beforeInsert: Validation, field population
- * - afterInsert: Related record creation, event publishing
- * - beforeUpdate: Validation, field updates
- * - afterUpdate: Related record updates, notifications
- * - beforeDelete: Delete validation
- * - afterDelete: Cleanup, audit trail
+ * Événements du déclencheur gérés :
+ * - beforeInsert : Validation, remplissage des champs
+ * - afterInsert : Création des enregistrements associés, publication d'événements
+ * - beforeUpdate : Validation, mise à jour des champs
+ * - afterUpdate : Mise à jour des enregistrements associés, notifications
+ * - beforeDelete : Validation de suppression
+ * - afterDelete : Nettoyage, piste d'audit
+ *
+ * Stratégie anti-récursion :
+ * - Suivi par contexte (before/after, insert/update/delete)
+ * - Prévient les boucles infinies des mises à jour auto-déclenchées
+ * - Utilise Set<Id> pour tracer les éléments de travail traités dans chaque contexte
  */
 public with sharing class WorkItemTriggerHandler {
   private static final Logger LOGGER = LoggerFactory.getLogger('WorkItemTriggerHandler');
 
+  // ========================================
+  // CONTRÔLES ANTI-RÉCURSION
+  // ========================================
+  // Trace les IDs traités par contexte de déclencheur pour prévenir la récursion.
+  // Chaque contexte (beforeInsert, afterInsert, etc.) a son propre Set
+  // pour permettre un contrôle indépendant du même enregistrement dans les différentes phases.
+
   /**
-   * @description Handle before insert events.
-   * @param newRecords Records being inserted
+   * @description IDs des éléments de travail traités dans le contexte beforeInsert.
+   * Prévient le re-traitement des mêmes enregistrements si handleBeforeInsert est appelé plusieurs fois.
+   */
+  private static Set<Id> processedBeforeInsertIds = new Set<Id>();
+
+  /**
+   * @description IDs des éléments de travail traités dans le contexte afterInsert.
+   * Prévient le re-traitement des mêmes enregistrements si handleAfterInsert est appelé plusieurs fois.
+   */
+  private static Set<Id> processedAfterInsertIds = new Set<Id>();
+
+  /**
+   * @description IDs des éléments de travail traités dans le contexte beforeUpdate.
+   * Prévient le re-traitement des mêmes enregistrements si handleBeforeUpdate est appelé plusieurs fois.
+   */
+  private static Set<Id> processedBeforeUpdateIds = new Set<Id>();
+
+  /**
+   * @description IDs des éléments de travail traités dans le contexte afterUpdate.
+   * Prévient le re-traitement des mêmes enregistrements si handleAfterUpdate est appelé plusieurs fois.
+   */
+  private static Set<Id> processedAfterUpdateIds = new Set<Id>();
+
+  /**
+   * @description IDs des éléments de travail traités dans le contexte beforeDelete.
+   * Prévient le re-traitement des mêmes enregistrements si handleBeforeDelete est appelé plusieurs fois.
+   */
+  private static Set<Id> processedBeforeDeleteIds = new Set<Id>();
+
+  /**
+   * @description IDs des éléments de travail traités dans le contexte afterDelete.
+   * Prévient le re-traitement des mêmes enregistrements si handleAfterDelete est appelé plusieurs fois.
+   */
+  private static Set<Id> processedAfterDeleteIds = new Set<Id>();
+
+  // ========================================
+  // MÉTHODES D'AIDE ANTI-RÉCURSION
+  // ========================================
+
+  /**
+   * @description Vérifier si un enregistrement a déjà été traité dans le contexte actuel.
+   * @param recordId ID à vérifier
+   * @param processedIds Ensemble des IDs déjà traités pour ce contexte
+   * @return true si l'enregistrement a déjà été traité (ignorer), false si nouveau
+   */
+  private static Boolean isAlreadyProcessed(Id recordId, Set<Id> processedIds) {
+    return processedIds.contains(recordId);
+  }
+
+  /**
+   * @description Marquer un enregistrement comme traité dans le contexte actuel.
+   * @param recordId ID à marquer comme traité
+   * @param processedIds Ensemble auquel ajouter l'ID
+   */
+  private static void markAsProcessed(Id recordId, Set<Id> processedIds) {
+    processedIds.add(recordId);
+  }
+
+  /**
+   * @description Marquer plusieurs enregistrements comme traités dans le contexte actuel.
+   * @param recordIds IDs à marquer comme traités
+   * @param processedIds Ensemble auquel ajouter les IDs
+   */
+  private static void markMultipleAsProcessed(List<Id> recordIds, Set<Id> processedIds) {
+    processedIds.addAll(recordIds);
+  }
+
+  /**
+   * @description Effacer les enregistrements traités pour le contexte actuel (rarement nécessaire, mais disponible).
+   * À utiliser avec prudence - généralement réinitialisé par transaction.
+   * @param processedIds Ensemble à effacer
+   */
+  private static void clearProcessed(Set<Id> processedIds) {
+    processedIds.clear();
+  }
+
+  /**
+   * @description Gérer les événements avant insertion.
+   * @param newRecords Enregistrements en cours d'insertion
+   *
+   * Anti-Récursion : Trace les IDs traités dans le contexte beforeInsert.
+   * Si le même enregistrement est traité deux fois dans beforeInsert,
+   * le deuxième appel sera ignoré.
    */
   public static void handleBeforeInsert(List<Work_Item__c> newRecords) {
     try {
-      LOGGER.info('handleBeforeInsert', 'Processing ' + newRecords.size() + ' records');
-      // TODO: Implement before insert logic
+      LOGGER.info('handleBeforeInsert', 'Traitement de ' + newRecords.size() + ' enregistrements');
+
+      // Filtrer les enregistrements déjà traités pour prévenir la récursion
+      List<Work_Item__c> recordsToProcess = new List<Work_Item__c>();
+      for (Work_Item__c record : newRecords) {
+        if (!isAlreadyProcessed(record.Id, processedBeforeInsertIds)) {
+          recordsToProcess.add(record);
+          markAsProcessed(record.Id, processedBeforeInsertIds);
+        }
+      }
+
+      if (recordsToProcess.isEmpty()) {
+        LOGGER.debug('handleBeforeInsert', 'Tous les enregistrements ont déjà été traités dans ce contexte, ignorant');
+        return;
+      }
+
+      LOGGER.debug(
+        'handleBeforeInsert',
+        'Traitement de ' + recordsToProcess.size() + ' nouveaux enregistrements (filtrés sur ' + newRecords.size() + ')'
+      );
+
+      // TODO : Implémenter la logique avant insertion en utilisant recordsToProcess
     } catch (Exception e) {
-      LOGGER.error('handleBeforeInsert', 'Error during before insert', e);
+      LOGGER.error('handleBeforeInsert', 'Erreur pendant l\'insertion', e);
       throw e;
     }
   }
 
   /**
-   * @description Handle after insert events.
-   * @param newRecords Records being inserted
+   * @description Gérer les événements après insertion.
+   * @param newRecords Enregistrements en cours d'insertion
+   *
+   * Anti-Récursion : Trace les IDs traités dans le contexte afterInsert.
+   * Si la logique dans ce gestionnaire met à jour des éléments de travail, l'appel du déclencheur récursif
+   * sera bloqué en vérifiant processedAfterInsertIds.
    */
   public static void handleAfterInsert(List<Work_Item__c> newRecords) {
     try {
-      LOGGER.info('handleAfterInsert', 'Processing ' + newRecords.size() + ' records');
-      // TODO: Implement after insert logic
+      LOGGER.info('handleAfterInsert', 'Traitement de ' + newRecords.size() + ' enregistrements');
+
+      // Filtrer les enregistrements déjà traités pour prévenir la récursion
+      List<Work_Item__c> recordsToProcess = new List<Work_Item__c>();
+      for (Work_Item__c record : newRecords) {
+        if (!isAlreadyProcessed(record.Id, processedAfterInsertIds)) {
+          recordsToProcess.add(record);
+          markAsProcessed(record.Id, processedAfterInsertIds);
+        }
+      }
+
+      if (recordsToProcess.isEmpty()) {
+        LOGGER.debug('handleAfterInsert', 'Tous les enregistrements ont déjà été traités dans ce contexte, ignorant');
+        return;
+      }
+
+      LOGGER.debug(
+        'handleAfterInsert',
+        'Traitement de ' + recordsToProcess.size() + ' nouveaux enregistrements (filtrés sur ' + newRecords.size() + ')'
+      );
+
+      // TODO : Implémenter la logique après insertion en utilisant recordsToProcess
+      // Exemple : Créer des enregistrements associés, publier des événements de plateforme, etc.
     } catch (Exception e) {
-      LOGGER.error('handleAfterInsert', 'Error during after insert', e);
+      LOGGER.error('handleAfterInsert', 'Erreur après insertion', e);
       throw e;
     }
   }
 
   /**
-   * @description Handle before update events.
-   * @param newRecords Records being updated
-   * @param oldRecords Previous record values
-   * @param newMap Map of new records (Id -> Record)
-   * @param oldMap Map of old records (Id -> Record)
+   * @description Gérer les événements avant mise à jour.
+   * @param newRecords Enregistrements en cours de mise à jour
+   * @param oldRecords Valeurs précédentes des enregistrements
+   * @param newMap Carte des nouveaux enregistrements (Id -> Enregistrement)
+   * @param oldMap Carte des anciens enregistrements (Id -> Enregistrement)
+   *
+   * Anti-Récursion : Trace les IDs traités dans le contexte beforeUpdate.
+   * Si le même enregistrement est mis à jour plusieurs fois dans la même transaction,
+   * seule la première mise à jour via beforeUpdate sera traitée.
    */
   public static void handleBeforeUpdate(
     List<Work_Item__c> newRecords,
@@ -60,20 +203,45 @@ public with sharing class WorkItemTriggerHandler {
     Map<Id, Work_Item__c> oldMap
   ) {
     try {
-      LOGGER.info('handleBeforeUpdate', 'Processing ' + newRecords.size() + ' records');
-      // TODO: Implement before update logic
+      LOGGER.info('handleBeforeUpdate', 'Traitement de ' + newRecords.size() + ' enregistrements');
+
+      // Filtrer les enregistrements déjà traités pour prévenir la récursion
+      List<Work_Item__c> recordsToProcess = new List<Work_Item__c>();
+      for (Work_Item__c record : newRecords) {
+        if (!isAlreadyProcessed(record.Id, processedBeforeUpdateIds)) {
+          recordsToProcess.add(record);
+          markAsProcessed(record.Id, processedBeforeUpdateIds);
+        }
+      }
+
+      if (recordsToProcess.isEmpty()) {
+        LOGGER.debug('handleBeforeUpdate', 'Tous les enregistrements ont déjà été traités dans ce contexte, ignorant');
+        return;
+      }
+
+      LOGGER.debug(
+        'handleBeforeUpdate',
+        'Traitement de ' + recordsToProcess.size() + ' nouveaux enregistrements (filtrés sur ' + newRecords.size() + ')'
+      );
+
+      // TODO : Implémenter la logique avant mise à jour en utilisant recordsToProcess
     } catch (Exception e) {
-      LOGGER.error('handleBeforeUpdate', 'Error during before update', e);
+      LOGGER.error('handleBeforeUpdate', 'Erreur avant mise à jour', e);
       throw e;
     }
   }
 
   /**
-   * @description Handle after update events.
-   * @param newRecords Records being updated
-   * @param oldRecords Previous record values
-   * @param newMap Map of new records (Id -> Record)
-   * @param oldMap Map of old records (Id -> Record)
+   * @description Gérer les événements après mise à jour.
+   * @param newRecords Enregistrements en cours de mise à jour
+   * @param oldRecords Valeurs précédentes des enregistrements
+   * @param newMap Carte des nouveaux enregistrements (Id -> Enregistrement)
+   * @param oldMap Carte des anciens enregistrements (Id -> Enregistrement)
+   *
+   * Anti-Récursion : Trace les IDs traités dans le contexte afterUpdate.
+   * Si ce gestionnaire publie des événements ou met à jour des enregistrements associés,
+   * qui déclenche ensuite une autre mise à jour, cet ID d'enregistrement se trouvera dans
+   * processedAfterUpdateIds et sera ignoré lors de la rentrée.
    */
   public static void handleAfterUpdate(
     List<Work_Item__c> newRecords,
@@ -82,38 +250,106 @@ public with sharing class WorkItemTriggerHandler {
     Map<Id, Work_Item__c> oldMap
   ) {
     try {
-      LOGGER.info('handleAfterUpdate', 'Processing ' + newRecords.size() + ' records');
-      // TODO: Implement after update logic
+      LOGGER.info('handleAfterUpdate', 'Traitement de ' + newRecords.size() + ' enregistrements');
+
+      // Filtrer les enregistrements déjà traités pour prévenir la récursion
+      List<Work_Item__c> recordsToProcess = new List<Work_Item__c>();
+      for (Work_Item__c record : newRecords) {
+        if (!isAlreadyProcessed(record.Id, processedAfterUpdateIds)) {
+          recordsToProcess.add(record);
+          markAsProcessed(record.Id, processedAfterUpdateIds);
+        }
+      }
+
+      if (recordsToProcess.isEmpty()) {
+        LOGGER.debug('handleAfterUpdate', 'Tous les enregistrements ont déjà été traités dans ce contexte, ignorant');
+        return;
+      }
+
+      LOGGER.debug(
+        'handleAfterUpdate',
+        'Traitement de ' + recordsToProcess.size() + ' nouveaux enregistrements (filtrés sur ' + newRecords.size() + ')'
+      );
+
+      // TODO : Implémenter la logique après mise à jour en utilisant recordsToProcess
+      // Exemple : Mettre à jour des enregistrements associés, publier des événements, envoyer des notifications, etc.
     } catch (Exception e) {
-      LOGGER.error('handleAfterUpdate', 'Error during after update', e);
+      LOGGER.error('handleAfterUpdate', 'Erreur après mise à jour', e);
       throw e;
     }
   }
 
   /**
-   * @description Handle before delete events.
-   * @param oldRecords Records being deleted
+   * @description Gérer les événements avant suppression.
+   * @param oldRecords Enregistrements en cours de suppression
+   *
+   * Anti-Récursion : Trace les IDs traités dans le contexte beforeDelete.
+   * Prévient le re-traitement de la même suppression si elle est déclenchée à nouveau.
    */
   public static void handleBeforeDelete(List<Work_Item__c> oldRecords) {
     try {
-      LOGGER.info('handleBeforeDelete', 'Processing ' + oldRecords.size() + ' records');
-      // TODO: Implement before delete logic
+      LOGGER.info('handleBeforeDelete', 'Traitement de ' + oldRecords.size() + ' enregistrements');
+
+      // Filtrer les enregistrements déjà traités pour prévenir la récursion
+      List<Work_Item__c> recordsToProcess = new List<Work_Item__c>();
+      for (Work_Item__c record : oldRecords) {
+        if (!isAlreadyProcessed(record.Id, processedBeforeDeleteIds)) {
+          recordsToProcess.add(record);
+          markAsProcessed(record.Id, processedBeforeDeleteIds);
+        }
+      }
+
+      if (recordsToProcess.isEmpty()) {
+        LOGGER.debug('handleBeforeDelete', 'Tous les enregistrements ont déjà été traités dans ce contexte, ignorant');
+        return;
+      }
+
+      LOGGER.debug(
+        'handleBeforeDelete',
+        'Traitement de ' + recordsToProcess.size() + ' nouveaux enregistrements (filtrés sur ' + oldRecords.size() + ')'
+      );
+
+      // TODO : Implémenter la logique avant suppression en utilisant recordsToProcess
     } catch (Exception e) {
-      LOGGER.error('handleBeforeDelete', 'Error during before delete', e);
+      LOGGER.error('handleBeforeDelete', 'Erreur avant suppression', e);
       throw e;
     }
   }
 
   /**
-   * @description Handle after delete events.
-   * @param oldRecords Records that were deleted
+   * @description Gérer les événements après suppression.
+   * @param oldRecords Enregistrements qui ont été supprimés
+   *
+   * Anti-Récursion : Trace les IDs traités dans le contexte afterDelete.
+   * Prévient le re-traitement si les suppressions associées ou les mises à jour déclenchent le même gestionnaire.
    */
   public static void handleAfterDelete(List<Work_Item__c> oldRecords) {
     try {
-      LOGGER.info('handleAfterDelete', 'Processing ' + oldRecords.size() + ' records');
-      // TODO: Implement after delete logic
+      LOGGER.info('handleAfterDelete', 'Traitement de ' + oldRecords.size() + ' enregistrements');
+
+      // Filtrer les enregistrements déjà traités pour prévenir la récursion
+      List<Work_Item__c> recordsToProcess = new List<Work_Item__c>();
+      for (Work_Item__c record : oldRecords) {
+        if (!isAlreadyProcessed(record.Id, processedAfterDeleteIds)) {
+          recordsToProcess.add(record);
+          markAsProcessed(record.Id, processedAfterDeleteIds);
+        }
+      }
+
+      if (recordsToProcess.isEmpty()) {
+        LOGGER.debug('handleAfterDelete', 'Tous les enregistrements ont déjà été traités dans ce contexte, ignorant');
+        return;
+      }
+
+      LOGGER.debug(
+        'handleAfterDelete',
+        'Traitement de ' + recordsToProcess.size() + ' nouveaux enregistrements (filtrés sur ' + oldRecords.size() + ')'
+      );
+
+      // TODO : Implémenter la logique après suppression en utilisant recordsToProcess
+      // Exemple : Nettoyage, enregistrement d'audit, suppressions en cascade, etc.
     } catch (Exception e) {
-      LOGGER.error('handleAfterDelete', 'Error during after delete', e);
+      LOGGER.error('handleAfterDelete', 'Erreur après suppression', e);
       throw e;
     }
   }

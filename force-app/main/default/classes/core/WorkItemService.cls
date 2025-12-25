@@ -1,129 +1,129 @@
 /**
  * @author Hamza Amari
  * @date 24/12/2025
- * @description Service layer for Work_Item__c operations.
- * Responsibilities:
- * - Orchestrate business operations (create, update, delete, assign)
- * - Coordinate between Domain, Selector, and external services
- * - Handle transaction management and error recovery
- * - Implement complex business workflows
- * - Publish platform events for async processing
+ * @description Couche de service pour les opérations de Work_Item__c.
+ * Responsabilités :
+ * - Orchestrer les opérations métier (créer, mettre à jour, supprimer, assigner)
+ * - Coordonner entre les couches Métier, Sélecteur et services externes
+ * - Gérer la gestion des transactions et la récupération d'erreurs
+ * - Implémenter les flux de travail métier complexes
+ * - Publier les événements de plateforme pour le traitement asynchrone
  *
- * This class contains the ONLY database operations (SOQL/DML) for WorkItems.
- * All queries and updates are delegated to private methods marked @TestVisible.
+ * Cette classe contient les SEULES opérations de base de données (SOQL/DML) pour les éléments de travail.
+ * Toutes les requêtes et mises à jour sont déléguées aux méthodes du Sélecteur.
  */
 public with sharing class WorkItemService {
   private static final Logger LOGGER = LoggerFactory.getLogger('WorkItemService');
 
   /**
-   * @description Create a new work item with validation.
-   * @param workItem Work item to create
-   * @return Id of created work item
+   * @description Créer un nouvel élément de travail avec validation.
+   * @param workItem Élément de travail à créer
+   * @return Id de l'élément de travail créé
    */
   public static Id createWorkItem(Work_Item__c workItem) {
     try {
-      LOGGER.info('createWorkItem', 'Creating work item: ' + workItem.Name);
+      LOGGER.info('createWorkItem', 'Création de l\'élément de travail : ' + workItem.Name);
 
-      // Validate
+      // Valider
       List<String> errors = WorkItemDomain.validate(new List<Work_Item__c>{ workItem });
       if (!errors.isEmpty()) {
         String errorMessage = String.join(errors, ', ');
-        LOGGER.warn('createWorkItem', 'Validation errors: ' + errorMessage);
+        LOGGER.warn('createWorkItem', 'Erreurs de validation : ' + errorMessage);
         throw new IllegalArgumentException(errorMessage);
       }
 
-      // Populate defaults
+      // Remplir les valeurs par défaut
       WorkItemDomain.populateDefaults(new List<Work_Item__c>{ workItem });
 
-      // Insert
+      // Insérer
       insert workItem;
-      LOGGER.info('createWorkItem', 'Work item created with Id: ' + workItem.Id);
+      LOGGER.info('createWorkItem', 'Élément de travail créé avec l\'Id : ' + workItem.Id);
 
       return workItem.Id;
     } catch (Exception e) {
-      LOGGER.error('createWorkItem', 'Failed to create work item', e);
+      LOGGER.error('createWorkItem', 'Échec de la création de l\'élément de travail', e);
       throw e;
     }
   }
 
   /**
-   * @description Update work item with change detection.
-   * @param workItem Work item to update
+   * @description Mettre à jour l'élément de travail avec détection des modifications.
+   * @param workItem Élément de travail à mettre à jour
    */
   public static void updateWorkItem(Work_Item__c workItem) {
     try {
-      LOGGER.info('updateWorkItem', 'Updating work item: ' + workItem.Id);
+      LOGGER.info('updateWorkItem', 'Mise à jour de l\'élément de travail : ' + workItem.Id);
 
-      // Validate
+      // Valider
       List<String> errors = WorkItemDomain.validate(new List<Work_Item__c>{ workItem });
       if (!errors.isEmpty()) {
         String errorMessage = String.join(errors, ', ');
-        LOGGER.warn('updateWorkItem', 'Validation errors: ' + errorMessage);
+        LOGGER.warn('updateWorkItem', 'Erreurs de validation : ' + errorMessage);
         throw new IllegalArgumentException(errorMessage);
       }
 
       update workItem;
-      LOGGER.info('updateWorkItem', 'Work item updated successfully');
+      LOGGER.info('updateWorkItem', 'Élément de travail mis à jour avec succès');
     } catch (Exception e) {
-      LOGGER.error('updateWorkItem', 'Failed to update work item', e);
+      LOGGER.error('updateWorkItem', 'Échec de la mise à jour de l\'élément de travail', e);
       throw e;
     }
   }
 
   /**
-   * @description Delete work item with cascading cleanup.
-   * @param workItemId Id of work item to delete
+   * @description Supprimer l'élément de travail avec nettoyage en cascade.
+   * @param workItemId Id de l'élément de travail à supprimer
    */
   public static void deleteWorkItem(Id workItemId) {
     try {
-      LOGGER.info('deleteWorkItem', 'Deleting work item: ' + workItemId);
+      LOGGER.info('deleteWorkItem', 'Suppression de l\'élément de travail : ' + workItemId);
 
       delete new Work_Item__c(Id = workItemId);
-      LOGGER.info('deleteWorkItem', 'Work item deleted successfully');
+      LOGGER.info('deleteWorkItem', 'Élément de travail supprimé avec succès');
     } catch (Exception e) {
-      LOGGER.error('deleteWorkItem', 'Failed to delete work item', e);
+      LOGGER.error('deleteWorkItem', 'Échec de la suppression de l\'élément de travail', e);
       throw e;
     }
   }
 
   /**
-   * @description Assign work item to a user.
-   * @param workItemId Id of work item
-   * @param userId Id of user to assign
+   * @description Assigner l'élément de travail à un utilisateur.
+   * @param workItemId Id de l'élément de travail
+   * @param userId Id de l'utilisateur à assigner
    */
   public static void assignWorkItem(Id workItemId, Id userId) {
     try {
-      LOGGER.info('assignWorkItem', 'Assigning work item ' + workItemId + ' to user ' + userId);
+      LOGGER.info('assignWorkItem', 'Attribution de l\'élément de travail ' + workItemId + ' à l\'utilisateur ' + userId);
 
       Work_Item__c workItem = new Work_Item__c(Id = workItemId);
-      // TODO: Add assignment logic
+      // TODO : Ajouter la logique d'attribution
       update workItem;
 
-      LOGGER.info('assignWorkItem', 'Work item assigned successfully');
+      LOGGER.info('assignWorkItem', 'Élément de travail attribué avec succès');
     } catch (Exception e) {
-      LOGGER.error('assignWorkItem', 'Failed to assign work item', e);
+      LOGGER.error('assignWorkItem', 'Échec de l\'attribution de l\'élément de travail', e);
       throw e;
     }
   }
 
   /**
-   * @description Update work item status with transition validation.
-   * @param workItemId Id of work item
-   * @param newStatus New status value
+   * @description Mettre à jour le statut de l'élément de travail avec validation de transition.
+   * @param workItemId Id de l'élément de travail
+   * @param newStatus Nouvelle valeur de statut
    */
   public static void updateStatus(Id workItemId, String newStatus) {
     try {
-      LOGGER.info('updateStatus', 'Updating status to: ' + newStatus);
+      LOGGER.info('updateStatus', 'Mise à jour du statut à : ' + newStatus);
 
       Work_Item__c workItem = WorkItemSelector.getById(workItemId);
       if (workItem == null) {
-        throw new IllegalArgumentException('Work item not found');
+        throw new IllegalArgumentException('Élément de travail non trouvé');
       }
 
-      // Validate transition
+      // Valider la transition
       Boolean isValid = WorkItemDomain.isStatusTransitionValid(workItem.Status__c, newStatus);
       if (!isValid) {
-        String errorMessage = 'Invalid status transition from ' + workItem.Status__c + ' to ' + newStatus;
+        String errorMessage = 'Transition de statut invalide de ' + workItem.Status__c + ' à ' + newStatus;
         LOGGER.warn('updateStatus', errorMessage);
         throw new IllegalArgumentException(errorMessage);
       }
@@ -131,37 +131,39 @@ public with sharing class WorkItemService {
       workItem.Status__c = newStatus;
       update workItem;
 
-      LOGGER.info('updateStatus', 'Status updated successfully to: ' + newStatus);
+      LOGGER.info('updateStatus', 'Statut mis à jour avec succès à : ' + newStatus);
     } catch (Exception e) {
-      LOGGER.error('updateStatus', 'Failed to update status', e);
+      LOGGER.error('updateStatus', 'Échec de la mise à jour du statut', e);
       throw e;
     }
   }
 
   /**
-   * @description Bulk update work items status.
-   * @param workItemIds List of work item Ids
-   * @param newStatus New status for all items
+   * @description Mise à jour en masse du statut des éléments de travail.
+   * @param workItemIds Liste des Ids d'éléments de travail
+   * @param newStatus Nouveau statut pour tous les éléments
    */
   public static void bulkUpdateStatus(List<Id> workItemIds, String newStatus) {
     try {
-      LOGGER.info('bulkUpdateStatus', 'Updating ' + workItemIds.size() + ' items to status: ' + newStatus);
+      LOGGER.info('bulkUpdateStatus', 'Mise à jour de ' + workItemIds.size() + ' éléments au statut : ' + newStatus);
 
+      // Vérifier si la liste n'est pas vide
       if (workItemIds == null || workItemIds.isEmpty()) {
-        LOGGER.warn('bulkUpdateStatus', 'No work items provided');
+        LOGGER.warn('bulkUpdateStatus', 'Aucun élément de travail fourni');
         return;
       }
 
       List<Work_Item__c> workItems = WorkItemSelector.getByIds(workItemIds);
 
+      // Mettre à jour le statut pour chaque élément
       for (Work_Item__c item : workItems) {
         item.Status__c = newStatus;
       }
 
       update workItems;
-      LOGGER.info('bulkUpdateStatus', 'Bulk update completed successfully');
+      LOGGER.info('bulkUpdateStatus', 'Mise à jour en masse terminée avec succès');
     } catch (Exception e) {
-      LOGGER.error('bulkUpdateStatus', 'Failed to bulk update status', e);
+      LOGGER.error('bulkUpdateStatus', 'Échec de la mise à jour en masse du statut', e);
       throw e;
     }
   }

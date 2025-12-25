@@ -1,121 +1,121 @@
 /**
  * @author Hamza Amari
  * @date 24/12/2025
- * @description Test data factory for creating test records.
- * Responsibilities:
- * - Provide builder methods for test record creation
- * - Implement consistent test data across all test classes
- * - Support fluent API for flexible test data setup
- * - Manage default values for required fields
- * - Isolate test data generation from test logic
+ * @description Fabrique de données de test pour créer des enregistrements de test.
+ * Responsabilités :
+ * - Fournir des méthodes de constructeur pour la création d'enregistrements de test
+ * - Implémenter des données de test cohérentes sur toutes les classes de test
+ * - Prendre en charge l'API fluide pour l'installation flexible des données de test
+ * - Gérer les valeurs par défaut pour les champs obligatoires
+ * - Isoler la génération de données de test de la logique de test
  *
- * This class implements the Builder pattern for clean test setup.
- * All methods are public static for easy test class usage.
+ * Cette classe implémente le motif Builder pour une installation de test claire.
+ * Toutes les méthodes sont publiques et statiques pour une utilisation facile dans les classes de test.
  */
 @isTest
 public class TestDataFactory {
   /**
-   * @description Create a test work item with default values.
-   * @return Work_Item__c record ready for insert
+   * @description Créer un élément de travail de test avec des valeurs par défaut.
+   * @return Enregistrement Work_Item__c prêt pour l'insertion
    */
   public static Work_Item__c createTestWorkItem() {
-    // TODO: Implement default work item creation
+    // TODO : Implémenter la création par défaut d'un élément de travail
     return new Work_Item__c();
   }
 
   /**
-   * @description Create multiple test work items.
-   * @param count Number of items to create
-   * @return List of Work_Item__c records ready for insert
+   * @description Créer plusieurs éléments de travail de test.
+   * @param count Nombre d'éléments à créer
+   * @return Liste des enregistrements Work_Item__c prêts pour l'insertion
    */
   public static List<Work_Item__c> createTestWorkItems(Integer count) {
     List<Work_Item__c> items = new List<Work_Item__c>();
-    // TODO: Implement bulk creation
+    // TODO : Implémenter la création en masse
     return items;
   }
 
   /**
-   * @description Create work item with specific field values.
-   * @param fields Map of field name -> value
-   * @return Work_Item__c record with specified values
+   * @description Créer un élément de travail avec des valeurs de champ spécifiques.
+   * @param fields Map du nom du champ -> valeur
+   * @return Enregistrement Work_Item__c avec les valeurs spécifiées
    */
   public static Work_Item__c createTestWorkItem(Map<String, Object> fields) {
     Work_Item__c item = createTestWorkItem();
-    // TODO: Apply field overrides
+    // TODO : Appliquer les remplacements de champs
     return item;
   }
 
   /**
-   * @description Create work item with specific status.
-   * @param status Status value
-   * @return Work_Item__c record with specified status
+   * @description Créer un élément de travail avec un statut spécifique.
+   * @param status Valeur du statut
+   * @return Enregistrement Work_Item__c avec le statut spécifié
    */
   public static Work_Item__c createTestWorkItemWithStatus(String status) {
-    // TODO: Implement status-specific creation
+    // TODO : Implémenter la création spécifique au statut
     return new Work_Item__c();
   }
 
   /**
-   * @description Create work item with related Account.
-   * @return Work_Item__c with Account__c populated
+   * @description Créer un élément de travail avec un Account associé.
+   * @return Work_Item__c avec Account__c rempli
    */
   public static Work_Item__c createTestWorkItemWithAccount() {
-    // TODO: Implement with Account relationship
+    // TODO : Implémenter avec relation Account
     return new Work_Item__c();
   }
 
   /**
-   * @description Create work item with related Contact.
-   * @return Work_Item__c with Contact__c populated
+   * @description Créer un élément de travail avec un Contact associé.
+   * @return Work_Item__c avec Contact__c rempli
    */
   public static Work_Item__c createTestWorkItemWithContact() {
-    // TODO: Implement with Contact relationship
+    // TODO : Implémenter avec relation Contact
     return new Work_Item__c();
   }
 
   /**
-   * @description Create work item with related Case.
-   * @return Work_Item__c with Case__c populated
+   * @description Créer un élément de travail avec un Case associé.
+   * @return Work_Item__c avec Case__c rempli
    */
   public static Work_Item__c createTestWorkItemWithCase() {
-    // TODO: Implement with Case relationship
+    // TODO : Implémenter avec relation Case
     return new Work_Item__c();
   }
 
   /**
-   * @description Insert test work items and return with populated Ids.
-   * @param workItems List to insert
-   * @return List with Ids populated
+   * @description Insérer les éléments de travail de test et retourner avec les Ids remplis.
+   * @param workItems Liste à insérer
+   * @return Liste avec Ids remplis
    */
   public static List<Work_Item__c> insertWorkItems(List<Work_Item__c> workItems) {
-    // TODO: Implement insert with error handling
+    // TODO : Implémenter l'insertion avec gestion des erreurs
     return workItems;
   }
 
   /**
-   * @description Create test Account for relationships.
-   * @return Account record ready for insert
+   * @description Créer un Account de test pour les relations.
+   * @return Enregistrement Account prêt pour l'insertion
    */
   public static Account createTestAccount() {
-    // TODO: Implement test Account creation
+    // TODO : Implémenter la création d'Account de test
     return new Account();
   }
 
   /**
-   * @description Create test Contact for relationships.
-   * @return Contact record ready for insert
+   * @description Créer un Contact de test pour les relations.
+   * @return Enregistrement Contact prêt pour l'insertion
    */
   public static Contact createTestContact() {
-    // TODO: Implement test Contact creation
+    // TODO : Implémenter la création de Contact de test
     return new Contact();
   }
 
   /**
-   * @description Create test Case for relationships.
-   * @return Case record ready for insert
+   * @description Créer un Case de test pour les relations.
+   * @return Enregistrement Case prêt pour l'insertion
    */
   public static Case createTestCase() {
-    // TODO: Implement test Case creation
+    // TODO : Implémenter la création de Case de test
     return new Case();
   }
 }

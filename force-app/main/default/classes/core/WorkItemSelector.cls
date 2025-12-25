@@ -1,33 +1,34 @@
 /**
  * @author Hamza Amari
  * @date 24/12/2025
- * @description Selector layer for Work_Item__c queries.
- * Responsibilities:
- * - Centralize all SOQL queries for Work_Item__c
- * - Build dynamic queries based on filters
- * - Handle CRUD validation
- * - Implement common query patterns
+ * @description Couche Sélecteur pour les requêtes de Work_Item__c.
+ * Responsabilités :
+ * - Centraliser toutes les requêtes SOQL pour Work_Item__c
+ * - Créer des requêtes dynamiques basées sur les filtres
+ * - Gérer la validation CRUD
+ * - Implémenter les modèles de requête courants
  *
- * RULE: This is the ONLY class with SOQL queries.
- * All methods must be marked @TestVisible.
- * No business logic - only data retrieval.
+ * RÈGLE : C'est la SEULE classe avec des requêtes SOQL.
+ * Toutes les méthodes doivent être marquées @TestVisible.
+ * Pas de logique métier - uniquement la récupération de données.
  */
 public with sharing class WorkItemSelector {
   private static final Logger LOGGER = LoggerFactory.getLogger('WorkItemSelector');
 
   /**
-   * @description Get work item by Id with all fields.
-   * @param workItemId Id to query
-   * @return Work item record or null if not found/not accessible
+   * @description Obtenir l'élément de travail par Id avec tous les champs.
+   * @param workItemId Id à interroger
+   * @return Enregistrement de l'élément de travail ou null s'il n'est pas trouvé ou pas accessible
    */
   public static Work_Item__c getById(Id workItemId) {
     try {
-      // CRUD validation
+      // Valider la CRUD
       if (!Work_Item__c.sObjectType.getDescribe(SObjectDescribeOptions.DEFERRED).isAccessible()) {
-        LOGGER.warn('getById', 'No read access to Work_Item__c');
+        LOGGER.warn('getById', 'Pas d\'accès en lecture à Work_Item__c');
         return null;
       }
 
+      // Exécuter la requête
       List<Work_Item__c> results = [
         SELECT
           Id,
@@ -42,20 +43,20 @@ public with sharing class WorkItemSelector {
 
       return results.isEmpty() ? null : results[0];
     } catch (Exception e) {
-      LOGGER.error('getById', 'Query failed for Id: ' + workItemId, e);
+      LOGGER.error('getById', 'Échec de la requête pour l\'Id : ' + workItemId, e);
       return null;
     }
   }
 
   /**
-   * @description Get multiple work items by Ids.
-   * @param workItemIds Set of Ids to query
-   * @return List of work items
+   * @description Obtenir plusieurs éléments de travail par Ids.
+   * @param workItemIds Ensemble des Ids à interroger
+   * @return Liste des éléments de travail
    */
   public static List<Work_Item__c> getByIds(List<Id> workItemIds) {
     try {
       if (!Work_Item__c.sObjectType.getDescribe(SObjectDescribeOptions.DEFERRED).isAccessible()) {
-        LOGGER.warn('getByIds', 'No read access to Work_Item__c');
+        LOGGER.warn('getByIds', 'Pas d\'accès en lecture à Work_Item__c');
         return new List<Work_Item__c>();
       }
 
@@ -74,14 +75,14 @@ public with sharing class WorkItemSelector {
         WHERE Id IN :workItemIds
       ];
     } catch (Exception e) {
-      LOGGER.error('getByIds', 'Query failed', e);
+      LOGGER.error('getByIds', 'Échec de la requête', e);
       return new List<Work_Item__c>();
     }
   }
 
   /**
-   * @description Get all work items ordered by creation date.
-   * @return List of work items
+   * @description Obtenir tous les éléments de travail triés par date de création.
+   * @return Liste des éléments de travail
    */
   public static List<Work_Item__c> getAll() {
     try {
@@ -95,15 +96,15 @@ public with sharing class WorkItemSelector {
         ORDER BY CreatedDate DESC
       ];
     } catch (Exception e) {
-      LOGGER.error('getAll', 'Query failed', e);
+      LOGGER.error('getAll', 'Échec de la requête', e);
       return new List<Work_Item__c>();
     }
   }
 
   /**
-   * @description Get work items by status.
-   * @param status Status value (e.g., 'In_Progress')
-   * @return List of work items
+   * @description Obtenir les éléments de travail par statut.
+   * @param status Valeur du statut (p. ex., 'In_Progress')
+   * @return Liste des éléments de travail
    */
   public static List<Work_Item__c> getByStatus(String status) {
     try {
@@ -117,15 +118,15 @@ public with sharing class WorkItemSelector {
         WHERE Status__c = :status
       ];
     } catch (Exception e) {
-      LOGGER.error('getByStatus', 'Query failed for status: ' + status, e);
+      LOGGER.error('getByStatus', 'Échec de la requête pour le statut : ' + status, e);
       return new List<Work_Item__c>();
     }
   }
 
   /**
-   * @description Get work items due within N days.
-   * @param days Number of days from today
-   * @return List of work items
+   * @description Obtenir les éléments de travail dont la date d'échéance est dans N jours.
+   * @param days Nombre de jours à partir d'aujourd'hui
+   * @return Liste des éléments de travail
    */
   public static List<Work_Item__c> getDueWithinDays(Integer days) {
     try {
@@ -142,15 +143,15 @@ public with sharing class WorkItemSelector {
         ORDER BY Due_Date__c ASC
       ];
     } catch (Exception e) {
-      LOGGER.error('getDueWithinDays', 'Query failed for days: ' + days, e);
+      LOGGER.error('getDueWithinDays', 'Échec de la requête pour les jours : ' + days, e);
       return new List<Work_Item__c>();
     }
   }
 
   /**
-   * @description Get work items by external Id (for sync).
-   * @param externalIds Set of external Ids
-   * @return Map of external Id -> Work Item
+   * @description Obtenir les éléments de travail par Id externe (pour la synchronisation).
+   * @param externalIds Ensemble des Ids externes
+   * @return Map d'Id externe -> Élément de travail
    */
   public static Map<String, Work_Item__c> getByExternalId(Set<String> externalIds) {
     Map<String, Work_Item__c> resultMap = new Map<String, Work_Item__c>();
@@ -176,14 +177,14 @@ public with sharing class WorkItemSelector {
 
       return resultMap;
     } catch (Exception e) {
-      LOGGER.error('getByExternalId', 'Query failed', e);
+      LOGGER.error('getByExternalId', 'Échec de la requête', e);
       return resultMap;
     }
   }
 
   /**
-   * @description Count work items by status.
-   * @return Map of status -> count
+   * @description Compter les éléments de travail par statut.
+   * @return Map de statut -> nombre
    */
   public static Map<String, Integer> countByStatus() {
     Map<String, Integer> resultMap = new Map<String, Integer>();
@@ -205,7 +206,7 @@ public with sharing class WorkItemSelector {
 
       return resultMap;
     } catch (Exception e) {
-      LOGGER.error('countByStatus', 'Aggregation query failed', e);
+      LOGGER.error('countByStatus', 'Échec de la requête d\'agrégation', e);
       return resultMap;
     }
   }

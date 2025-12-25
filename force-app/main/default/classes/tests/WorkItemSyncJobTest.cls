@@ -1,13 +1,13 @@
 /**
- * @description Unit tests for WorkItemSyncJob batch and scheduled execution.
- * Test Coverage:
- * - Batch start method query
- * - Batch execute method processing
- * - Batch finish method cleanup
- * - Scheduled execution
- * - Bulk operation handling
- * - Error handling and logging
- * - Batch result logging
+ * @description Tests unitaires pour l'exécution par lot et planifiée de WorkItemSyncJob.
+ * Couverture de test :
+ * - Méthode de démarrage du lot crée une requête
+ * - Traitement de la méthode d'exécution du lot
+ * - Nettoyage de la méthode de finition du lot
+ * - Exécution planifiée
+ * - Gestion des opérations en masse
+ * - Gestion des erreurs et enregistrement
+ * - Enregistrement des résultats du lot
  * 
  * @author Hamza Amari
  * @version 1.0
@@ -15,90 +15,90 @@
 @isTest
 private class WorkItemSyncJobTest {
   /**
-   * @description Test batch start creates correct query.
+   * @description Tester que le démarrage du lot crée la requête correcte.
    */
   @isTest
   static void testBatchStartCreatesQuery() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 
   /**
-   * @description Test batch execute processes work items.
+   * @description Tester que l'exécution du lot traite les éléments de travail.
    */
   @isTest
   static void testBatchExecuteProcessesItems() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 
   /**
-   * @description Test batch finish logs results.
+   * @description Tester que la finition du lot enregistre les résultats.
    */
   @isTest
   static void testBatchFinishLogsResults() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 
   /**
-   * @description Test full sync incremental flag works.
+   * @description Tester que le drapeau de synchronisation complète/incrémentale fonctionne.
    */
   @isTest
   static void testFullSyncIncremental() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 
   /**
-   * @description Test sync handles large batches.
+   * @description Tester que la synchronisation gère les lots volumineux.
    */
   @isTest
   static void testSyncHandlesLargeBatches() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 
   /**
-   * @description Test sync error handling per item.
+   * @description Tester la gestion des erreurs de synchronisation par élément.
    */
   @isTest
   static void testSyncErrorHandlingPerItem() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 
   /**
-   * @description Test scheduled execution runs correctly.
+   * @description Tester que l'exécution planifiée s'exécute correctement.
    */
   @isTest
   static void testScheduledExecutionRuns() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 
   /**
-   * @description Test batch can be scheduled with cron expression.
+   * @description Tester que le lot peut être planifié avec une expression cron.
    */
   @isTest
   static void testCanScheduleWithCronExpression() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 
   /**
-   * @description Test conflict resolution in sync.
+   * @description Tester la résolution des conflits dans la synchronisation.
    */
   @isTest
   static void testConflictResolutionInSync() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 
   /**
-   * @description Test sync logging captures success count.
+   * @description Tester que l'enregistrement de synchronisation capture le nombre de succès.
    */
   @isTest
   static void testSyncLoggingCapturesSuccess() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 
   /**
-   * @description Test sync logging captures error count.
+   * @description Tester que l'enregistrement de synchronisation capture le nombre d'erreurs.
    */
   @isTest
   static void testSyncLoggingCapturesErrors() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 }

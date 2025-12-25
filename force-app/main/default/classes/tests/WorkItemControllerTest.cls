@@ -1,14 +1,14 @@
 /**
- * @description Unit tests for WorkItemController REST/API logic.
- * Test Coverage:
- * - Get single work item
- * - Get work items list with filters
- * - Create work item from request
- * - Update work item from request
- * - Delete work item
- * - Error response formatting
- * - Permission validation
- * - Input validation
+ * @description Tests unitaires pour la logique REST/API WorkItemController.
+ * Couverture de test :
+ * - Obtenir un seul élément de travail
+ * - Obtenir la liste des éléments de travail avec filtres
+ * - Créer un élément de travail à partir d'une requête
+ * - Mettre à jour un élément de travail à partir d'une requête
+ * - Supprimer un élément de travail
+ * - Formatage des réponses d'erreur
+ * - Validation des permissions
+ * - Validation des entrées
  * 
  * @author Hamza Amari
  * @version 1.0
@@ -16,67 +16,67 @@
 @isTest
 private class WorkItemControllerTest {
   /**
-   * @description Test getWorkItem returns formatted data.
+   * @description Tester que getWorkItem retourne les données formatées.
    */
   @isTest
   static void testGetWorkItemReturnsFormatted() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 
   /**
-   * @description Test getWorkItem handles nonexistent ID.
+   * @description Tester que getWorkItem gère un ID inexistant.
    */
   @isTest
   static void testGetWorkItemHandlesNotFound() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 
   /**
-   * @description Test getWorkItemsList applies filters correctly.
+   * @description Tester que getWorkItemsList applique les filtres correctement.
    */
   @isTest
   static void testGetWorkItemsListAppliesFilters() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 
   /**
-   * @description Test getWorkItemsList respects limit parameter.
+   * @description Tester que getWorkItemsList respecte le paramètre de limite.
    */
   @isTest
   static void testGetWorkItemsListRespectsLimit() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 
   /**
-   * @description Test createWorkItem validates input.
+   * @description Tester que createWorkItem valide l'entrée.
    */
   @isTest
   static void testCreateWorkItemValidatesInput() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 
   /**
-   * @description Test createWorkItem returns error for invalid data.
+   * @description Tester que createWorkItem retourne une erreur pour les données invalides.
    */
   @isTest
   static void testCreateWorkItemReturnsErrorInvalid() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 
   /**
-   * @description Test updateWorkItem validates permissions.
+   * @description Tester que updateWorkItem valide les permissions.
    */
   @isTest
   static void testUpdateWorkItemValidatesPermissions() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 
   /**
-   * @description Test updateWorkItem applies changes correctly.
+   * @description Tester que updateWorkItem applique les modifications correctement.
    */
   @isTest
   static void testUpdateWorkItemAppliesChanges() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 
   /**

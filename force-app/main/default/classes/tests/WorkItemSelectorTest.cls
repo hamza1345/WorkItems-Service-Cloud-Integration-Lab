@@ -1,13 +1,13 @@
 /**
- * @description Unit tests for WorkItemSelector SOQL queries.
- * Test Coverage:
- * - Query by ID
- * - Query by multiple IDs
- * - Query by status filter
- * - Query by owner
- * - Query recent records
- * - Query incomplete records
- * - Query with relationships
+ * @description Tests unitaires pour les requêtes SOQL WorkItemSelector.
+ * Couverture de test :
+ * - Requête par ID
+ * - Requête par plusieurs Ids
+ * - Requête par filtre de statut
+ * - Requête par propriétaire
+ * - Requête des enregistrements récents
+ * - Requête des enregistrements incomplets
+ * - Requête avec relations
  * 
  * @author Hamza Amari
  * @version 1.0
@@ -15,90 +15,90 @@
 @isTest
 private class WorkItemSelectorTest {
   /**
-   * @description Test selectById retrieves single record.
+   * @description Tester que selectById récupère un seul enregistrement.
    */
   @isTest
   static void testSelectByIdReturnsSingleRecord() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 
   /**
-   * @description Test selectById returns null for nonexistent ID.
+   * @description Tester que selectById retourne null pour un ID inexistant.
    */
   @isTest
   static void testSelectByIdReturnsNullNotFound() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 
   /**
-   * @description Test selectByIds retrieves multiple records.
+   * @description Tester que selectByIds récupère plusieurs enregistrements.
    */
   @isTest
   static void testSelectByIdsReturnsMultiple() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 
   /**
-   * @description Test selectByIds returns empty list when none found.
+   * @description Tester que selectByIds retourne une liste vide si aucun n'est trouvé.
    */
   @isTest
   static void testSelectByIdsReturnsEmptyListNotFound() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 
   /**
-   * @description Test selectByStatus filters correctly.
+   * @description Tester que selectByStatus filtre correctement.
    */
   @isTest
   static void testSelectByStatusFiltersCorrectly() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 
   /**
-   * @description Test selectByOwner filters by user.
+   * @description Tester que selectByOwner filtre par utilisateur.
    */
   @isTest
   static void testSelectByOwnerFiltersCorrectly() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 
   /**
-   * @description Test selectRecent returns recent items ordered.
+   * @description Tester que selectRecent retourne les éléments récents triés.
    */
   @isTest
   static void testSelectRecentOrdersCorrectly() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 
   /**
-   * @description Test selectIncomplete returns only incomplete items.
+   * @description Tester que selectIncomplete retourne uniquement les éléments incomplets.
    */
   @isTest
   static void testSelectIncompleteFiltersCorrectly() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 
   /**
-   * @description Test selectWithRelationships includes related records.
+   * @description Tester que selectWithRelationships inclut les enregistrements associés.
    */
   @isTest
   static void testSelectWithRelationshipsIncludesRelated() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 
   /**
-   * @description Test queries respect with sharing context.
+   * @description Tester que les requêtes respectent le contexte de partage.
    */
   @isTest
   static void testQueriesRespectSharingContext() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 
   /**
-   * @description Test query performance with large datasets.
+   * @description Tester les performances des requêtes avec des données volumineuses.
    */
   @isTest
   static void testQueryPerformanceWithLargeData() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 }

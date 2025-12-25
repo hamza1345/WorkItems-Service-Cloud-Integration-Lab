@@ -1,113 +1,113 @@
 /**
  * @author Hamza Amari
  * @date 24/12/2025
- * @description Batch job for asynchronous work item synchronization.
- * Responsibilities:
- * - Sync work items with external system in batch
- * - Handle batch-level error handling and logging
- * - Process large datasets efficiently
- * - Manage transaction scope for batch operations
- * - Can also be scheduled for periodic execution
+ * @description Travail par lot pour la synchronisation asynchrone des éléments de travail.
+ * Responsabilités :
+ * - Synchroniser les éléments de travail avec le système externe par lot
+ * - Gérer la gestion des erreurs au niveau du lot et l'enregistrement
+ * - Traiter efficacement les grands ensembles de données
+ * - Gérer la portée des transactions pour les opérations par lot
+ * - Peut également être planifié pour une exécution périodique
  *
- * Implements Database.Batchable and Schedulable for flexibility.
- * Uses WorkItemService for business logic.
+ * Implémente Database.Batchable et Schedulable pour la flexibilité.
+ * Utilise WorkItemService pour la logique métier.
  */
 public class WorkItemSyncJob implements Database.Batchable<SObject>, Schedulable {
   private String syncType;
   private static final Logger LOGGER = LoggerFactory.getLogger('WorkItemSyncJob');
 
   /**
-   * @description Constructor for batch execution.
-   * @param syncType Type of sync (full, incremental, resolve_conflicts)
+   * @description Constructeur pour l'exécution par lot.
+   * @param syncType Type de synchronisation (complète, incrémentale, résoudre_conflits)
    */
   public WorkItemSyncJob(String syncType) {
     this.syncType = syncType;
   }
 
   /**
-   * @description Query work items for synchronization.
-   * @param batchContext Batch context
-   * @return QueryLocator for work items to sync
+   * @description Interroger les éléments de travail pour la synchronisation.
+   * @param batchContext Contexte du lot
+   * @return QueryLocator pour les éléments de travail à synchroniser
    */
   public Database.QueryLocator start(Database.BatchableContext batchContext) {
-    LOGGER.info('start', 'Starting batch job with sync type: ' + syncType);
-    // TODO: Implement query for items to sync
+    LOGGER.info('start', 'Démarrage du travail par lot avec type de synchronisation : ' + syncType);
+    // TODO : Implémenter la requête pour les éléments à synchroniser
     return Database.getQueryLocator('SELECT Id FROM Work_Item__c LIMIT 1000');
   }
 
   /**
-   * @description Execute batch for a chunk of work items.
-   * @param batchContext Batch context
-   * @param workItems List of work items in this batch chunk
+   * @description Exécuter le lot pour un ensemble d'éléments de travail.
+   * @param batchContext Contexte du lot
+   * @param workItems Liste des éléments de travail dans ce bloc du lot
    */
   public void execute(Database.BatchableContext batchContext, List<SObject> workItems) {
     try {
-      LOGGER.info('execute', 'Processing ' + workItems.size() + ' items in batch ' + batchContext.getJobId());
-      // TODO: Implement batch execution logic
-      // Cast to Work_Item__c and process
+      LOGGER.info('execute', 'Traitement de ' + workItems.size() + ' éléments dans le lot ' + batchContext.getJobId());
+      // TODO : Implémenter la logique d'exécution du lot
+      // Caster en Work_Item__c et traiter
     } catch (Exception e) {
-      LOGGER.error('execute', 'Batch execution failed', e);
+      LOGGER.error('execute', 'Échec de l\'exécution du lot', e);
       throw e;
     }
   }
 
   /**
-   * @description Called after batch completes.
-   * @param batchContext Batch context
+   * @description Appelé une fois le lot terminé.
+   * @param batchContext Contexte du lot
    */
   public void finish(Database.BatchableContext batchContext) {
     try {
-      LOGGER.info('finish', 'Batch job completed: ' + batchContext.getJobId());
-      // TODO: Implement cleanup and final logging
+      LOGGER.info('finish', 'Travail par lot terminé : ' + batchContext.getJobId());
+      // TODO : Implémenter le nettoyage et l'enregistrement final
     } catch (Exception e) {
-      LOGGER.error('finish', 'Batch finish failed', e);
+      LOGGER.error('finish', 'Échec de la finition du lot', e);
     }
   }
 
   /**
-   * @description Schedule batch execution.
-   * @param scheduleContext Schedule context
+   * @description Planifier l'exécution du lot.
+   * @param scheduleContext Contexte de la planification
    */
   public void execute(SchedulableContext scheduleContext) {
     try {
-      LOGGER.info('execute', 'Executing scheduled sync job');
-      // TODO: Implement scheduled execution
+      LOGGER.info('execute', 'Exécution du travail de synchronisation planifié');
+      // TODO : Implémenter l'exécution planifiée
       // Database.executeBatch(new WorkItemSyncJob('incremental'), 100);
     } catch (Exception e) {
-      LOGGER.error('execute', 'Scheduled execution failed', e);
+      LOGGER.error('execute', 'Échec de l\'exécution planifiée', e);
       throw e;
     }
   }
 
   /**
-   * @description Process single work item sync.
-   * @param workItem Work item to sync
-   * @return true if sync successful
+   * @description Traiter la synchronisation d'un seul élément de travail.
+   * @param workItem Élément de travail à synchroniser
+   * @return true si la synchronisation est réussie
    */
   private static Boolean syncSingleItem(Work_Item__c workItem) {
-    // TODO: Implement single item sync logic
+    // TODO : Implémenter la logique de synchronisation d'un seul élément
     return false;
   }
 
   /**
-   * @description Log batch execution results.
-   * @param batchId Batch job Id
-   * @param totalCount Total records processed
-   * @param successCount Successfully synced records
-   * @param errorCount Failed records
+   * @description Enregistrer les résultats d'exécution du lot.
+   * @param batchId Id du travail par lot
+   * @param totalCount Nombre total d'enregistrements traités
+   * @param successCount Enregistrements synchronisés avec succès
+   * @param errorCount Enregistrements en erreur
    */
   private static void logBatchResults(Id batchId, Integer totalCount, Integer successCount, Integer errorCount) {
     LOGGER.info(
       'logBatchResults',
-      'Batch ' +
+      'Lot ' +
       batchId +
       ': Total=' +
       totalCount +
-      ', Success=' +
+      ', Succès=' +
       successCount +
-      ', Errors=' +
+      ', Erreurs=' +
       errorCount
     );
-    // TODO: Implement result logging
+    // TODO : Implémenter l'enregistrement des résultats
   }
 }

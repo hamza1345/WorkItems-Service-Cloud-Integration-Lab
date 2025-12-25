@@ -1,16 +1,16 @@
 /**
  * @author Hamza Amari
  * @date 24/12/2025
- * @description Integration layer for external REST API calls.
- * Responsibilities:
- * - Manage HTTP requests to external systems
- * - Implement retry logic and exponential backoff
- * - Handle authentication (OAuth, API keys, etc.)
- * - Parse and format request/response data
- * - Log all API interactions
+ * @description Couche d'intégration pour les appels API REST externes.
+ * Responsabilités :
+ * - Gérer les requêtes HTTP vers les systèmes externes
+ * - Implémenter la logique de réessai et la rétractation exponentielle
+ * - Gérer l'authentification (OAuth, clés API, etc.)
+ * - Analyser et formater les données de requête/réponse
+ * - Enregistrer toutes les interactions API
  *
- * This class handles only HTTP communication.
- * Business logic belongs in WorkItemService.
+ * Cette classe gère uniquement la communication HTTP.
+ * La logique métier appartient à WorkItemService.
  */
 public class ExternalRestClient {
   private static final String EXTERNAL_ENDPOINT = 'https://api.external-system.com';
@@ -19,109 +19,109 @@ public class ExternalRestClient {
   private static final Logger LOGGER = LoggerFactory.getLogger('ExternalRestClient');
 
   /**
-   * @description Send GET request to external system.
-   * @param endpoint API endpoint path
-   * @param queryParams Query parameters map
-   * @return Response body as String
+   * @description Envoyer une requête GET au système externe.
+   * @param endpoint Chemin du point de terminaison API
+   * @param queryParams Map des paramètres de requête
+   * @return Corps de la réponse en tant que String
    */
   public static String doGet(String endpoint, Map<String, String> queryParams) {
     try {
-      LOGGER.info('doGet', 'Sending GET request to: ' + endpoint);
-      // TODO: Implement GET request with retry logic
+      LOGGER.info('doGet', 'Envoi d\'une requête GET vers : ' + endpoint);
+      // TODO : Implémenter la requête GET avec logique de réessai
       return '';
     } catch (Exception e) {
-      LOGGER.error('doGet', 'GET request failed', e);
+      LOGGER.error('doGet', 'Échec de la requête GET', e);
       throw e;
     }
   }
 
   /**
-   * @description Send POST request to external system.
-   * @param endpoint API endpoint path
-   * @param requestBody Request body as JSON String
-   * @return Response body as String
+   * @description Envoyer une requête POST au système externe.
+   * @param endpoint Chemin du point de terminaison API
+   * @param requestBody Corps de la requête en tant que String JSON
+   * @return Corps de la réponse en tant que String
    */
   public static String doPost(String endpoint, String requestBody) {
     try {
-      LOGGER.info('doPost', 'Sending POST request to: ' + endpoint);
-      // TODO: Implement POST request with retry logic
+      LOGGER.info('doPost', 'Envoi d\'une requête POST vers : ' + endpoint);
+      // TODO : Implémenter la requête POST avec logique de réessai
       return '';
     } catch (Exception e) {
-      LOGGER.error('doPost', 'POST request failed', e);
+      LOGGER.error('doPost', 'Échec de la requête POST', e);
       throw e;
     }
   }
 
   /**
-   * @description Send PUT request to external system.
-   * @param endpoint API endpoint path
-   * @param requestBody Request body as JSON String
-   * @return Response body as String
+   * @description Envoyer une requête PUT au système externe.
+   * @param endpoint Chemin du point de terminaison API
+   * @param requestBody Corps de la requête en tant que String JSON
+   * @return Corps de la réponse en tant que String
    */
   public static String doPut(String endpoint, String requestBody) {
     try {
-      LOGGER.info('doPut', 'Sending PUT request to: ' + endpoint);
-      // TODO: Implement PUT request with retry logic
+      LOGGER.info('doPut', 'Envoi d\'une requête PUT vers : ' + endpoint);
+      // TODO : Implémenter la requête PUT avec logique de réessai
       return '';
     } catch (Exception e) {
-      LOGGER.error('doPut', 'PUT request failed', e);
+      LOGGER.error('doPut', 'Échec de la requête PUT', e);
       throw e;
     }
   }
 
   /**
-   * @description Send DELETE request to external system.
-   * @param endpoint API endpoint path
-   * @return Response body as String
+   * @description Envoyer une requête DELETE au système externe.
+   * @param endpoint Chemin du point de terminaison API
+   * @return Corps de la réponse en tant que String
    */
   public static String doDelete(String endpoint) {
     try {
-      LOGGER.info('doDelete', 'Sending DELETE request to: ' + endpoint);
-      // TODO: Implement DELETE request with retry logic
+      LOGGER.info('doDelete', 'Envoi d\'une requête DELETE vers : ' + endpoint);
+      // TODO : Implémenter la requête DELETE avec logique de réessai
       return '';
     } catch (Exception e) {
-      LOGGER.error('doDelete', 'DELETE request failed', e);
+      LOGGER.error('doDelete', 'Échec de la requête DELETE', e);
       throw e;
     }
   }
 
   /**
-   * @description Build HTTP request with authentication headers.
-   * @param method HTTP method
-   * @param endpoint API endpoint path
-   * @return HttpRequest ready for sending
+   * @description Construire la requête HTTP avec en-têtes d'authentification.
+   * @param method Méthode HTTP
+   * @param endpoint Chemin du point de terminaison API
+   * @return HttpRequest prêt à être envoyé
    */
   private static HttpRequest buildRequest(String method, String endpoint) {
-    // TODO: Implement request building with authentication
+    // TODO : Implémenter la construction de la requête avec authentification
     return new HttpRequest();
   }
 
   /**
-   * @description Get authentication token or API key.
-   * @return Authentication value (Bearer token, API key, etc.)
+   * @description Obtenir le jeton d'authentification ou la clé API.
+   * @return Valeur d'authentification (jeton Bearer, clé API, etc.)
    */
   private static String getAuthenticationToken() {
-    // TODO: Implement token retrieval (from org settings, cache, etc.)
+    // TODO : Implémenter la récupération du jeton (à partir des paramètres org, cache, etc.)
     return '';
   }
 
   /**
-   * @description Handle HTTP response status codes.
-   * @param statusCode HTTP status code
-   * @return true if response indicates success
+   * @description Gérer les codes de statut de réponse HTTP.
+   * @param statusCode Code de statut HTTP
+   * @return true si la réponse indique un succès
    */
   private static Boolean isSuccessStatus(Integer statusCode) {
     return statusCode >= 200 && statusCode < 300;
   }
 
   /**
-   * @description Execute HTTP request with retry logic.
-   * @param request HttpRequest to execute
-   * @param retryCount Current retry attempt
-   * @return HttpResponse from server
+   * @description Exécuter la requête HTTP avec logique de réessai.
+   * @param request HttpRequest à exécuter
+   * @param retryCount Tentative de réessai actuelle
+   * @return HttpResponse du serveur
    */
   private static HttpResponse executeWithRetry(HttpRequest request, Integer retryCount) {
-    // TODO: Implement retry logic with exponential backoff
+    // TODO : Implémenter la logique de réessai avec rétractation exponentielle
     return new Http().send(request);
   }
 }

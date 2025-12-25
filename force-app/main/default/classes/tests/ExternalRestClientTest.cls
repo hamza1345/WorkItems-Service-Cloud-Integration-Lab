@@ -1,14 +1,14 @@
 /**
- * @description Unit tests for ExternalRestClient HTTP integration.
- * Test Coverage:
- * - GET requests with retry logic
- * - POST requests with retry logic
- * - PUT requests with retry logic
- * - DELETE requests with retry logic
- * - Authentication header building
- * - Error status code handling
- * - Exponential backoff retry
- * - HTTP timeout handling
+ * @description Tests unitaires pour l'intégration HTTP ExternalRestClient.
+ * Couverture de test :
+ * - Requêtes GET avec logique de réessai
+ * - Requêtes POST avec logique de réessai
+ * - Requêtes PUT avec logique de réessai
+ * - Requêtes DELETE avec logique de réessai
+ * - Construction des en-têtes d'authentification
+ * - Gestion des codes de statut d'erreur
+ * - Réessai avec rétractation exponentielle
+ * - Gestion du délai d'attente HTTP
  * 
  * @author Hamza Amari
  * @version 1.0
@@ -16,67 +16,67 @@
 @isTest
 private class ExternalRestClientTest {
   /**
-   * @description Test doGet sends correct request.
+   * @description Tester que doGet envoie la requête correcte.
    */
   @isTest
   static void testDoGetSendsRequest() {
-    // TODO: Implement test with mock HTTP response
+    // TODO : Implémenter le test avec réponse HTTP simulée
   }
 
   /**
-   * @description Test doGet includes query parameters.
+   * @description Tester que doGet inclut les paramètres de requête.
    */
   @isTest
   static void testDoGetIncludesQueryParams() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 
   /**
-   * @description Test doPost sends request body.
+   * @description Tester que doPost envoie le corps de la requête.
    */
   @isTest
   static void testDoPostSendsBody() {
-    // TODO: Implement test with mock HTTP response
+    // TODO : Implémenter le test avec réponse HTTP simulée
   }
 
   /**
-   * @description Test doPut sends request body.
+   * @description Tester que doPut envoie le corps de la requête.
    */
   @isTest
   static void testDoPutSendsBody() {
-    // TODO: Implement test with mock HTTP response
+    // TODO : Implémenter le test avec réponse HTTP simulée
   }
 
   /**
-   * @description Test doDelete sends DELETE method.
+   * @description Tester que doDelete envoie la méthode DELETE.
    */
   @isTest
   static void testDoDeleteSendsMethod() {
-    // TODO: Implement test with mock HTTP response
+    // TODO : Implémenter le test avec réponse HTTP simulée
   }
 
   /**
-   * @description Test retry logic on transient failure.
+   * @description Tester la logique de réessai en cas d'échec transitoire.
    */
   @isTest
   static void testRetryLogicOnTransientFailure() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 
   /**
-   * @description Test exponential backoff between retries.
+   * @description Tester la rétractation exponentielle entre les réessais.
    */
   @isTest
   static void testExponentialBackoffBetweenRetries() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 
   /**
-   * @description Test authentication header included.
+   * @description Tester que l'en-tête d'authentification est inclus.
    */
   @isTest
   static void testAuthenticationHeaderIncluded() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 
   /**

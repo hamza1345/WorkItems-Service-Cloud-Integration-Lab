@@ -1,14 +1,14 @@
 /**
- * @description Unit tests for SoapClientFacade SOAP integration.
- * Test Coverage:
- * - Sync work item to external system
- * - Get work item from external system
- * - Create work item in external system
- * - Update work item in external system
- * - Delete work item from external system
- * - SOAP envelope building
- * - Authentication handling
- * - SOAP fault parsing
+ * @description Tests unitaires pour l'intégration SOAP SoapClientFacade.
+ * Couverture de test :
+ * - Synchroniser l'élément de travail avec le système externe
+ * - Obtenir l'élément de travail du système externe
+ * - Créer l'élément de travail dans le système externe
+ * - Mettre à jour l'élément de travail dans le système externe
+ * - Supprimer l'élément de travail du système externe
+ * - Construction de l'enveloppe SOAP
+ * - Gestion de l'authentification
+ * - Analyse des défauts SOAP
  * 
  * @author Hamza Amari
  * @version 1.0
@@ -16,67 +16,67 @@
 @isTest
 private class SoapClientFacadeTest {
   /**
-   * @description Test syncWorkItem sends correct SOAP call.
+   * @description Tester que syncWorkItem envoie l'appel SOAP correct.
    */
   @isTest
   static void testSyncWorkItemSendsSoapCall() {
-    // TODO: Implement test with mock SOAP response
+    // TODO : Implémenter le test avec réponse SOAP simulée
   }
 
   /**
-   * @description Test syncWorkItem handles success response.
+   * @description Tester que syncWorkItem gère la réponse de succès.
    */
   @isTest
   static void testSyncWorkItemHandlesSuccess() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 
   /**
-   * @description Test getExternalWorkItem retrieves data.
+   * @description Tester que getExternalWorkItem récupère les données.
    */
   @isTest
   static void testGetExternalWorkItemRetrieves() {
-    // TODO: Implement test with mock SOAP response
+    // TODO : Implémenter le test avec réponse SOAP simulée
   }
 
   /**
-   * @description Test getExternalWorkItem parses response.
+   * @description Tester que getExternalWorkItem analyse la réponse.
    */
   @isTest
   static void testGetExternalWorkItemParsesResponse() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 
   /**
-   * @description Test createExternalWorkItem returns ID.
+   * @description Tester que createExternalWorkItem retourne l'ID.
    */
   @isTest
   static void testCreateExternalWorkItemReturnsId() {
-    // TODO: Implement test with mock SOAP response
+    // TODO : Implémenter le test avec réponse SOAP simulée
   }
 
   /**
-   * @description Test updateExternalWorkItem applies changes.
+   * @description Tester que updateExternalWorkItem applique les modifications.
    */
   @isTest
   static void testUpdateExternalWorkItemAppliesChanges() {
-    // TODO: Implement test with mock SOAP response
+    // TODO : Implémenter le test avec réponse SOAP simulée
   }
 
   /**
-   * @description Test deleteExternalWorkItem removes record.
+   * @description Tester que deleteExternalWorkItem supprime l'enregistrement.
    */
   @isTest
   static void testDeleteExternalWorkItemRemovesRecord() {
-    // TODO: Implement test with mock SOAP response
+    // TODO : Implémenter le test avec réponse SOAP simulée
   }
 
   /**
-   * @description Test SOAP envelope includes authentication.
+   * @description Tester que l'enveloppe SOAP inclut l'authentification.
    */
   @isTest
   static void testSoapEnvelopeIncludesAuth() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 
   /**

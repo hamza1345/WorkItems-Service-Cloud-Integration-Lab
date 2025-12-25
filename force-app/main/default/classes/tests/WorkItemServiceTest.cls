@@ -1,12 +1,12 @@
 /**
- * @description Unit tests for WorkItemService orchestration logic.
- * Test Coverage:
- * - Create work item with validation
- * - Bulk update with error handling
- * - Delete with cleanup
- * - Status change with transition validation
- * - Search by criteria
- * - External system synchronization
+ * @description Tests unitaires pour la logique d'orchestration WorkItemService.
+ * Couverture de test :
+ * - Créer un élément de travail avec validation
+ * - Mise à jour en masse avec gestion des erreurs
+ * - Supprimer avec nettoyage
+ * - Changement de statut avec validation de transition
+ * - Recherche par critères
+ * - Synchronisation du système externe
  * 
  * @author Hamza Amari
  * @version 1.0
@@ -14,90 +14,90 @@
 @isTest
 private class WorkItemServiceTest {
   /**
-   * @description Test createWorkItem with valid data.
+   * @description Tester createWorkItem avec des données valides.
    */
   @isTest
   static void testCreateWorkItemWithValidData() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 
   /**
-   * @description Test createWorkItem rejects invalid data.
+   * @description Tester que createWorkItem rejette les données invalides.
    */
   @isTest
   static void testCreateWorkItemRejectsInvalid() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 
   /**
-   * @description Test updateWorkItems handles bulk updates.
+   * @description Tester que updateWorkItems gère les mises à jour en masse.
    */
   @isTest
   static void testUpdateWorkItemsBulkHandling() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 
   /**
-   * @description Test updateWorkItems returns errors on failure.
+   * @description Tester que updateWorkItems retourne les erreurs en cas d'échec.
    */
   @isTest
   static void testUpdateWorkItemsReturnsErrors() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 
   /**
-   * @description Test deleteWorkItems removes records.
+   * @description Tester que deleteWorkItems supprime les enregistrements.
    */
   @isTest
   static void testDeleteWorkItemsRemovesRecords() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 
   /**
-   * @description Test deleteWorkItems cleanup logic.
+   * @description Tester la logique de nettoyage de deleteWorkItems.
    */
   @isTest
   static void testDeleteWorkItemsCleanup() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 
   /**
-   * @description Test changeStatus validates transitions.
+   * @description Tester que changeStatus valide les transitions.
    */
   @isTest
   static void testChangeStatusValidatesTransitions() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 
   /**
-   * @description Test changeStatus rejects invalid transitions.
+   * @description Tester que changeStatus rejette les transitions invalides.
    */
   @isTest
   static void testChangeStatusRejectsInvalid() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 
   /**
-   * @description Test findByCriteria returns matching records.
+   * @description Tester que findByCriteria retourne les enregistrements correspondants.
    */
   @isTest
   static void testFindByCriteriaReturnsMatches() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 
   /**
-   * @description Test syncWithExternalSystem integrates correctly.
+   * @description Tester que syncWithExternalSystem s'intègre correctement.
    */
   @isTest
   static void testSyncWithExternalSystem() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 
   /**
-   * @description Test service handles transaction rollback on error.
+   * @description Tester que le service gère la restauration de transaction en cas d'erreur.
    */
   @isTest
   static void testTransactionRollbackOnError() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 }

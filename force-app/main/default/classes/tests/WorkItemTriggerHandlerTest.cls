@@ -1,16 +1,16 @@
 /**
- * @description Unit tests for WorkItemTriggerHandler trigger event handling.
- * Test Coverage:
- * - Before Insert event handling
- * - After Insert event handling
- * - Before Update event handling
- * - After Update event handling
- * - Before Delete event handling
- * - After Delete event handling
- * - Error scenarios and rollback handling
- * - Bulk operation scenarios
+ * @description Tests unitaires pour la gestion des événements de déclenchement WorkItemTriggerHandler.
+ * Couverture de test :
+ * - Gestion des événements Before Insert
+ * - Gestion des événements After Insert
+ * - Gestion des événements Before Update
+ * - Gestion des événements After Update
+ * - Gestion des événements Before Delete
+ * - Gestion des événements After Delete
+ * - Scénarios d'erreur et gestion de la restauration
+ * - Scénarios d'opérations en masse
  * 
- * Each test method covers one scenario and uses meaningful assertions.
+ * Chaque méthode de test couvre un scénario et utilise des assertions significatives.
  * 
  * @author Hamza Amari
  * @version 1.0
@@ -18,106 +18,106 @@
 @isTest
 private class WorkItemTriggerHandlerTest {
   /**
-   * @description Test before insert event populates default values.
+   * @description Tester que l'événement before insert renseigne les valeurs par défaut.
    */
   @isTest
   static void testBeforeInsertPopulatesDefaults() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 
   /**
-   * @description Test before insert event validates required fields.
+   * @description Tester que l'événement before insert valide les champs obligatoires.
    */
   @isTest
   static void testBeforeInsertValidatesRequired() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 
   /**
-   * @description Test after insert event creates related records.
+   * @description Tester que l'événement after insert crée les enregistrements associés.
    */
   @isTest
   static void testAfterInsertCreatesRelated() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 
   /**
-   * @description Test after insert event publishes platform event.
+   * @description Tester que l'événement after insert publie l'événement de plateforme.
    */
   @isTest
   static void testAfterInsertPublishesEvent() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 
   /**
-   * @description Test before update event validates transitions.
+   * @description Tester que l'événement before update valide les transitions.
    */
   @isTest
   static void testBeforeUpdateValidatesTransition() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 
   /**
-   * @description Test after update event syncs with external system.
+   * @description Tester que l'événement after update se synchronise avec le système externe.
    */
   @isTest
   static void testAfterUpdateSyncsExternal() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 
   /**
-   * @description Test before delete event prevents deletion in certain states.
+   * @description Tester que l'événement before delete empêche la suppression dans certains états.
    */
   @isTest
   static void testBeforeDeletePreventsInvalidDelete() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 
   /**
-   * @description Test after delete event cleanup logic.
+   * @description Tester que l'événement after delete nettoie la logique.
    */
   @isTest
   static void testAfterDeleteCleansUp() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 
   /**
-   * @description Test trigger handles bulk insert operations.
+   * @description Tester que le déclenchement gère les opérations d'insertion en masse.
    */
   @isTest
   static void testBulkInsert() {
-    // TODO: Implement test with 50+ records
+    // TODO : Implémenter le test avec 50+ enregistrements
   }
 
   /**
-   * @description Test trigger handles bulk update operations.
+   * @description Tester que le déclenchement gère les opérations de mise à jour en masse.
    */
   @isTest
   static void testBulkUpdate() {
-    // TODO: Implement test with 50+ records
+    // TODO : Implémenter le test avec 50+ enregistrements
   }
 
   /**
-   * @description Test trigger error handling and transaction rollback.
+   * @description Tester la gestion des erreurs du déclenchement et la restauration des transactions.
    */
   @isTest
   static void testErrorHandlingAndRollback() {
-    // TODO: Implement test
+    // TODO : Implémenter le test
   }
 
   /**
-   * @description Helper to setup test context and prerequisites.
+   * @description Aide à configurer le contexte de test et les conditions préalables.
    */
   private static void setupTestContext() {
-    // TODO: Implement setup (create test data, mock settings, etc.)
+    // TODO : Implémenter la configuration (créer des données de test, paramètres simulés, etc.)
   }
 
   /**
-   * @description Helper to assert trigger execution flow.
-   * @param expectedBehavior Expected trigger behavior description
-   * @param actualResult Actual execution result
+   * @description Aide à affirmer le flux d'exécution du déclenchement.
+   * @param expectedBehavior Description du comportement attendu du déclenchement
+   * @param actualResult Résultat d'exécution réel
    */
   private static void assertTriggerExecution(String expectedBehavior, Boolean actualResult) {
-    // TODO: Implement assertion with meaningful message
+    // TODO : Implémenter l'assertion avec un message significatif
   }
 }
