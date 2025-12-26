@@ -108,6 +108,41 @@ public with sharing class WorkItemTriggerHandler {
     processedIds.clear();
   }
 
+  // ========================================
+  // CONTRÔLES DE BYPASS D'AUTOMATION
+  // ========================================
+
+  /**
+   * @description Vérifier si l'automation doit être contournée pour l'utilisateur actuel.
+   * Teste les custom permissions dans l'ordre de priorité :
+   * 1. Bypass_All_Automation (désactive TOUS les déclencheurs)
+   * 2. Bypass_WorkItem_Automation (désactive SEULEMENT les déclencheurs WorkItem)
+   * @return true si le bypass est activé, false sinon
+   */
+  private static Boolean shouldBypassAutomation() {
+    // Vérifier permission globale en premier (priorité élevée)
+    if (FeatureManagement.checkPermission('Bypass_All_Automation')) {
+      LOGGER.warn(
+        'shouldBypassAutomation',
+        'Automation bypassed (Global) for user: ' + UserInfo.getUserName() + 
+        ' | Profile: ' + UserInfo.getProfileId()
+      );
+      return true;
+    }
+
+    // Vérifier permission spécifique WorkItem
+    if (FeatureManagement.checkPermission('Bypass_WorkItem_Automation')) {
+      LOGGER.warn(
+        'shouldBypassAutomation',
+        'Automation bypassed (WorkItem) for user: ' + UserInfo.getUserName() + 
+        ' | Profile: ' + UserInfo.getProfileId()
+      );
+      return true;
+    }
+
+    return false;
+  }
+
   /**
    * @description Gérer les événements avant insertion.
    * @param newRecords Enregistrements en cours d'insertion
@@ -118,6 +153,11 @@ public with sharing class WorkItemTriggerHandler {
    */
   public static void handleBeforeInsert(List<Work_Item__c> newRecords) {
     try {
+      // ✅ VÉRIFIER LE BYPASS GLOBAL EN PREMIER
+      if (shouldBypassAutomation()) {
+        return;
+      }
+
       LOGGER.info('handleBeforeInsert', 'Traitement de ' + newRecords.size() + ' enregistrements');
 
       // Filtrer les enregistrements déjà traités pour prévenir la récursion
@@ -156,6 +196,11 @@ public with sharing class WorkItemTriggerHandler {
    */
   public static void handleAfterInsert(List<Work_Item__c> newRecords) {
     try {
+      // ✅ VÉRIFIER LE BYPASS GLOBAL EN PREMIER
+      if (shouldBypassAutomation()) {
+        return;
+      }
+
       LOGGER.info('handleAfterInsert', 'Traitement de ' + newRecords.size() + ' enregistrements');
 
       // Filtrer les enregistrements déjà traités pour prévenir la récursion
@@ -203,6 +248,11 @@ public with sharing class WorkItemTriggerHandler {
     Map<Id, Work_Item__c> oldMap
   ) {
     try {
+      // ✅ VÉRIFIER LE BYPASS GLOBAL EN PREMIER
+      if (shouldBypassAutomation()) {
+        return;
+      }
+
       LOGGER.info('handleBeforeUpdate', 'Traitement de ' + newRecords.size() + ' enregistrements');
 
       // Filtrer les enregistrements déjà traités pour prévenir la récursion
@@ -250,6 +300,11 @@ public with sharing class WorkItemTriggerHandler {
     Map<Id, Work_Item__c> oldMap
   ) {
     try {
+      // ✅ VÉRIFIER LE BYPASS GLOBAL EN PREMIER
+      if (shouldBypassAutomation()) {
+        return;
+      }
+
       LOGGER.info('handleAfterUpdate', 'Traitement de ' + newRecords.size() + ' enregistrements');
 
       // Filtrer les enregistrements déjà traités pour prévenir la récursion
@@ -288,6 +343,11 @@ public with sharing class WorkItemTriggerHandler {
    */
   public static void handleBeforeDelete(List<Work_Item__c> oldRecords) {
     try {
+      // ✅ VÉRIFIER LE BYPASS GLOBAL EN PREMIER
+      if (shouldBypassAutomation()) {
+        return;
+      }
+
       LOGGER.info('handleBeforeDelete', 'Traitement de ' + oldRecords.size() + ' enregistrements');
 
       // Filtrer les enregistrements déjà traités pour prévenir la récursion
@@ -325,6 +385,11 @@ public with sharing class WorkItemTriggerHandler {
    */
   public static void handleAfterDelete(List<Work_Item__c> oldRecords) {
     try {
+      // ✅ VÉRIFIER LE BYPASS GLOBAL EN PREMIER
+      if (shouldBypassAutomation()) {
+        return;
+      }
+
       LOGGER.info('handleAfterDelete', 'Traitement de ' + oldRecords.size() + ' enregistrements');
 
       // Filtrer les enregistrements déjà traités pour prévenir la récursion
