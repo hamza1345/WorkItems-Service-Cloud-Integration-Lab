@@ -108,6 +108,9 @@ public with sharing class WorkItemTriggerHandler {
     processedIds.clear();
   }
 
+
+
+
   // ========================================
   // CONTRÔLES DE BYPASS D'AUTOMATION
   // ========================================
@@ -179,7 +182,14 @@ public with sharing class WorkItemTriggerHandler {
         'Traitement de ' + recordsToProcess.size() + ' nouveaux enregistrements (filtrés sur ' + newRecords.size() + ')'
       );
 
-      // TODO : Implémenter la logique avant insertion en utilisant recordsToProcess
+      // Appliquer les règles métier du domaine
+      WorkItemDomain.populateDefaults(recordsToProcess);
+      List<String> validationErrors = WorkItemDomain.validate(recordsToProcess);
+      
+      if (!validationErrors.isEmpty()) {
+        LOGGER.error('handleBeforeInsert', 'Erreurs de validation : ' + String.join(validationErrors, '; '));
+        throw new WorkItemBusinessException('Erreurs de validation du Work_Item : ' + String.join(validationErrors, '; '));
+      }
     } catch (Exception e) {
       LOGGER.error('handleBeforeInsert', 'Erreur pendant l\'insertion', e);
       throw e;
@@ -222,8 +232,8 @@ public with sharing class WorkItemTriggerHandler {
         'Traitement de ' + recordsToProcess.size() + ' nouveaux enregistrements (filtrés sur ' + newRecords.size() + ')'
       );
 
-      // TODO : Implémenter la logique après insertion en utilisant recordsToProcess
-      // Exemple : Créer des enregistrements associés, publier des événements de plateforme, etc.
+      // Appliquer les règles métier du domaine après insertion
+      WorkItemDomain.applyBusinessRules(recordsToProcess, null);
     } catch (Exception e) {
       LOGGER.error('handleAfterInsert', 'Erreur après insertion', e);
       throw e;
@@ -274,7 +284,13 @@ public with sharing class WorkItemTriggerHandler {
         'Traitement de ' + recordsToProcess.size() + ' nouveaux enregistrements (filtrés sur ' + newRecords.size() + ')'
       );
 
-      // TODO : Implémenter la logique avant mise à jour en utilisant recordsToProcess
+      // Appliquer les règles métier du domaine et valider
+      List<String> validationErrors = WorkItemDomain.validate(recordsToProcess);
+      
+      if (!validationErrors.isEmpty()) {
+        LOGGER.error('handleBeforeUpdate', 'Erreurs de validation : ' + String.join(validationErrors, '; '));
+        throw new WorkItemBusinessException('Erreurs de validation du Work_Item : ' + String.join(validationErrors, '; '));
+      }
     } catch (Exception e) {
       LOGGER.error('handleBeforeUpdate', 'Erreur avant mise à jour', e);
       throw e;
@@ -326,8 +342,8 @@ public with sharing class WorkItemTriggerHandler {
         'Traitement de ' + recordsToProcess.size() + ' nouveaux enregistrements (filtrés sur ' + newRecords.size() + ')'
       );
 
-      // TODO : Implémenter la logique après mise à jour en utilisant recordsToProcess
-      // Exemple : Mettre à jour des enregistrements associés, publier des événements, envoyer des notifications, etc.
+      // Appliquer les règles métier du domaine après mise à jour (exemple: remplir Completed_On)
+      WorkItemDomain.applyBusinessRules(recordsToProcess, oldMap);
     } catch (Exception e) {
       LOGGER.error('handleAfterUpdate', 'Erreur après mise à jour', e);
       throw e;
