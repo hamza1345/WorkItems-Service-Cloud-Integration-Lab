@@ -32,7 +32,7 @@ private class FeatureFlagsTest {
 
   // Assert - defaults should be safe
   Assert.isTrue(loggingEnabled, 'Logging should be enabled by default');
-  Assert.areEqual('DEBUG', minLevel, 'Default log level should be DEBUG');
+  Assert.areEqual('INFO', minLevel, 'Default log level should be INFO');
   Assert.isFalse(persistLogs, 'Logs should not persist by default');
   Assert.isFalse(perfLogs, 'Perf logs should be disabled by default');
   Assert.isFalse(disableAuto, 'Automations should be enabled by default');
