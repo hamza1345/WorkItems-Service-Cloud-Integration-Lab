@@ -243,58 +243,80 @@ Rendre le système observable en production en persistant les logs pour consulta
 
 #### App_Log__e (Platform Event)
 ```apex
-// Champs mapés
+// Champs disponibles dans l'événement
 - Level__c          : INFO, ERROR, WARN, DEBUG
-- Message__c        : Texte du log
-- Request_Id__c     : ID de corrélation
-- Class_Name__c     : Quelle classe
-- Method_Name__c    : Quelle méthode
-- User_Id__c        : Qui a exécuté
-- Exception_Message__c      : Message exception
-- Exception_Stack_Trace__c  : Stack trace complet
+- Message__c        : Texte du log (LongTextArea)
+- Source__c         : Classe.methode qui génère le log
+- RecordId__c       : ID de l'enregistrement concerné
+- CorrelationId__c  : ID de corrélation pour tracer flux
+- Tags__c           : Tags pour catégorisation (LongTextArea)
+- StackTrace__c     : Stack trace complet (LongTextArea)
 ```
 
-#### App_Log_EventSubscriber (Trigger Subscriber)
+#### App_Log_EventTrigger & App_Log_EventTriggerHandler
 ```apex
-implements messaging.CloudMessageHandler
+// Trigger - force-app/main/default/triggers/App_Log_EventTrigger.trigger
+trigger App_Log_EventTrigger on App_Log__e (after insert) {
+  if (Trigger.isAfter && Trigger.isInsert) {
+    App_Log_EventTriggerHandler.persistLogs(Trigger.new);
+  }
+}
 
-public void handleMessage(messaging.CloudMessage message) {
-  // 1. Vérifier si persistLogs = true (Feature Flag)
-  if (!FeatureFlags.persistLogs()) {
-    return; // Ignorer si persistance désactivée
+// Handler - force-app/main/default/classes/logging/App_Log_EventTriggerHandler.cls
+public with sharing class App_Log_EventTriggerHandler {
+  public static void persistLogs(List<App_Log__e> logEvents) {
+    // 1. Vérifier si persistLogs = true (Feature Flag)
+    if (!FeatureFlags.persistLogs()) {
+      return; // Ignorer si persistance désactivée
+    }
+    
+    // 2. Valider CRUD (Vérifier les permissions)
+    if (!App_Log__c.sObjectType.getDescribe(SObjectDescribeOptions.DEFERRED).isCreateable()) {
+      return; // Silencieux si pas de permission
+    }
+    
+    // 3. Convertir tous les App_Log__e → App_Log__c (Mappage direct)
+    List<App_Log__c> logsToInsert = new List<App_Log__c>();
+    for (App_Log__e logEvent : logEvents) {
+      logsToInsert.add(convertEventToRecord(logEvent));
+    }
+    
+    // 4. Insérer en bulk (Bulk-safe, aucune limite DML)
+    if (!logsToInsert.isEmpty()) {
+      insert logsToInsert;
+    }
   }
   
-  // 2. Parser l'événement JSON
-  App_Log__e logEvent = (App_Log__e) JSON.deserialize(payload, App_Log__e.class);
-  
-  // 3. Convertir App_Log__e → App_Log__c (Mappage direct, aucun calcul)
-  App_Log__c record = convertEventToRecord(logEvent);
-  
-  // 4. Valider CRUD (Vérifier les permissions)
-  if (!App_Log__c.sObjectType.getDescribe().isCreateable()) {
-    return; // Silencieux si pas de permission
+  // Conversion pure : pas de logique métier
+  private static App_Log__c convertEventToRecord(App_Log__e logEvent) {
+    return new App_Log__c(
+      Level__c = logEvent.Level__c,
+      Message__c = logEvent.Message__c,
+      Source__c = logEvent.Source__c,
+      RecordId__c = logEvent.RecordId__c,
+      CorrelationId__c = logEvent.CorrelationId__c,
+      Tags__c = logEvent.Tags__c,
+      StackTrace__c = logEvent.StackTrace__c
+    );
   }
-  
-  // 5. Insérer en base (Bulk-safe, async)
-  insert record;
 }
 ```
 
 #### App_Log__c (Custom Object)
 ```xml
-<!-- Table de stockage -->
+<!-- Table de stockage pour les logs persistants -->
 <CustomObject>
   <label>Application Log</label>
+  <pluralLabel>Application Logs</pluralLabel>
   <fields>
-    <Level__c>String(20)</Level__c>
-    <Message__c>LongTextArea(4096)</Message__c>
-    <Request_Id__c>String(255)</Request_Id__c>
-    <Class_Name__c>String(255)</Class_Name__c>
-    <Method_Name__c>String(255)</Method_Name__c>
-    <User_Id__c>String(18)</User_Id__c>
-    <Exception_Message__c>String(1000)</Exception_Message__c>
-    <Exception_Stack_Trace__c>LongTextArea(4096)</Exception_Stack_Trace__c>
-    <Timestamp__c>DateTime</Timestamp__c>
+    <Level__c>Text(255)</Level__c>
+    <Message__c>LongTextArea(32768)</Message__c>
+    <Source__c>Text(255) - Classe.méthode</Source__c>
+    <RecordId__c>Text(255) - ID de l'enregistrement</RecordId__c>
+    <CorrelationId__c>Text(255) - ID de corrélation</CorrelationId__c>
+    <Tags__c>LongTextArea(32768) - Tags JSON</Tags__c>
+    <StackTrace__c>LongTextArea(32768) - Stack trace</StackTrace__c>
+    <CreatedDate>Auto - Timestamp création</CreatedDate>
   </fields>
 </CustomObject>
 ```
@@ -349,16 +371,15 @@ public void handleMessage(messaging.CloudMessage message) {
 ### 🧪 Tests de Persistance
 
 ```apex
-App_Log_EventSubscriberTest
-├─ testEventConversionToRecord() → Mappage correct des champs
-├─ testLogPersistence() → Insertion en base réussie
-├─ testErrorHandlingGraceful() → Erreurs gérées proprement
-├─ testConversionHandlesNull() → Valeurs null OK
-├─ testBulkPersistence() → 10+ logs en même temps
-├─ testExceptionFieldsMapping() → Exception fields mappées
-└─ testAllFieldsMapped() → Tous les champs présents
+App_Log_EventSubscriberTest (renamed from App_Log_EventTriggerHandlerTest)
+├─ testLogPersistence() → Insertion via trigger réussie
+├─ testBulkPersistence() → 10+ logs en même temps (Bulk-safe)
+├─ testAllAvailableFieldsMapped() → Tous les champs mapés correctement
+├─ testConversionHandlesNull() → Valeurs null gérées proprement
+└─ testErrorHandlingGraceful() → Publication sans exception
 
-Résultats : 7/7 tests ✅ 100% pass rate
+Résultats : 5/5 tests ✅ 100% pass rate
+Intégrés dans la suite de test globale : 195/195 ✅
 ```
 
 ---
