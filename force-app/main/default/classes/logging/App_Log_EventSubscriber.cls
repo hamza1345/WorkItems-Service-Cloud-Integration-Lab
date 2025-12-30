@@ -4,13 +4,13 @@
  * @description Abonné aux événements App_Log__e pour persister les logs en base de données.
  * Responsabilités :
  * - Consommer les événements Platform Event App_Log__e
- * - Mapper les données d'événement vers App_Log__c
+ * - Mapper les données d'événement vers AppLogging__c
  * - Insérer les logs en bulk dans la base de données
  * - Gérer les erreurs sans interrompre le traitement
  * - Vérifier les flags de fonctionnalités avant persistance
  *
  * Sécurité :
- * - Valider l'accès CRUD à App_Log__c avant insertion
+ * - Valider l'accès CRUD à AppLogging__c avant insertion
  * - Utiliser with sharing pour respecter les permissions
  *
  * Performance :
@@ -40,15 +40,15 @@ public with sharing class App_Log_EventSubscriber {
       }
 
       // Valider CRUD avant insertion
-      if (!App_Log__c.sObjectType.getDescribe(SObjectDescribeOptions.DEFERRED).isCreateable()) {
-        LOGGER.warn('handleMessage', 'Pas d\'accès en création à App_Log__c');
+      if (!AppLogging__c.sObjectType.getDescribe(SObjectDescribeOptions.DEFERRED).isCreateable()) {
+        LOGGER.warn('handleMessage', 'Pas d\'accès en création à AppLogging__c');
         return;
       }
 
       // Convertir tous les événements en enregistrements
-      List<App_Log__c> logsToInsert = new List<App_Log__c>();
+      List<AppLogging__c> logsToInsert = new List<AppLogging__c>();
       for (App_Log__e logEvent : logEvents) {
-        App_Log__c logRecord = convertEventToRecord(logEvent);
+        AppLogging__c logRecord = convertEventToRecord(logEvent);
         logsToInsert.add(logRecord);
       }
 
@@ -69,13 +69,14 @@ public with sharing class App_Log_EventSubscriber {
   }
 
   /**
-   * @description Convertir un événement App_Log__e en enregistrement App_Log__c.
+   * @description Convertir un événement App_Log__e en enregistrement AppLogging__c.
    * Mappage direct sans calcul métier.
    * @param logEvent Événement à convertir
-   * @return Enregistrement App_Log__c mappé
+   * @return Enregistrement AppLogging__c mappé
    */
-  private static App_Log__c convertEventToRecord(App_Log__e logEvent) {
-    return new App_Log__c(
+  @TestVisible
+  private static AppLogging__c convertEventToRecord(App_Log__e logEvent) {
+    return new AppLogging__c(
       Level__c = logEvent.Level__c,
       Message__c = logEvent.Message__c,
       Request_Id__c = logEvent.Request_Id__c,

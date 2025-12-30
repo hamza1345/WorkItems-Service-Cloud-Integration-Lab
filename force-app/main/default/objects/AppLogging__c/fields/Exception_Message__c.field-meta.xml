@@ -3,7 +3,7 @@
     <fullName>Exception_Message__c</fullName>
     <externalId>false</externalId>
     <label>Message Exception</label>
-    <length>1000</length>
+    <length>255</length>
     <required>false</required>
     <type>Text</type>
     <unique>false</unique>

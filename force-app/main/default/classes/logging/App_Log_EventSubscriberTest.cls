@@ -28,25 +28,25 @@ private class App_Log_EventSubscriberTest {
       Exception_Stack_Trace__c = null
     );
 
-    // Act
-    App_Log__c record = App_Log_EventSubscriber.convertEventToRecord(logEvent);
+    // Act - Tester directement la conversion sans passer par handleMessage
+    AppLogging__c record = App_Log_EventSubscriber.convertEventToRecord(logEvent);
 
-    // Assert
+    // Assert - Vérifier le mapping
     Assert.areEqual('INFO', record.Level__c, 'Level devrait être mappé');
     Assert.areEqual('Message de test', record.Message__c, 'Message devrait être mappé');
     Assert.areEqual('REQ-12345', record.Request_Id__c, 'Request ID devrait être mappé');
     Assert.areEqual('TestClass', record.Class_Name__c, 'Class name devrait être mappé');
     Assert.areEqual('testMethod', record.Method_Name__c, 'Method name devrait être mappé');
+    Assert.areEqual(UserInfo.getUserId(), record.User_Id__c, 'User ID devrait être mappé');
+    Assert.isNotNull(record.Timestamp__c, 'Timestamp devrait être rempli');
   }
 
   /**
-   * @description Tester que les logs sont persistés avec succès.
+   * @description Tester que les logs sont persistés avec succès via trigger.
    */
   @IsTest
   static void testLogPersistence() {
     // Arrange
-    Test.startTest();
-
     App_Log__e logEvent = new App_Log__e(
       Level__c = 'ERROR',
       Message__c = 'Test de persistance',
@@ -56,14 +56,14 @@ private class App_Log_EventSubscriberTest {
       User_Id__c = UserInfo.getUserId()
     );
 
-    // Act
-    App_Log_EventSubscriber.handleMessage(new List<App_Log__e>{ logEvent });
-
+    // Act - Publier l'event pour déclencher le trigger
+    Test.startTest();
+    EventBus.publish(logEvent);
     Test.stopTest();
 
     // Assert
-    List<App_Log__c> insertedLogs = [
-      SELECT Id, Level__c, Message__c FROM App_Log__c WHERE Request_Id__c = 'REQ-67890'
+    List<AppLogging__c> insertedLogs = [
+      SELECT Id, Level__c, Message__c FROM AppLogging__c WHERE Request_Id__c = 'REQ-67890'
     ];
     Assert.isTrue(insertedLogs.size() > 0, 'Log devrait être persisté dans la base de données');
     Assert.areEqual('ERROR', insertedLogs[0].Level__c);
@@ -76,6 +76,8 @@ private class App_Log_EventSubscriberTest {
   @IsTest
   static void testConversionHandlesNull() {
     // Arrange
+    Test.startTest();
+
     App_Log__e logEvent = new App_Log__e(
       Level__c = 'ERROR',
       Message__c = 'Erreur sans exception',
@@ -88,12 +90,19 @@ private class App_Log_EventSubscriberTest {
     );
 
     // Act
-    App_Log__c record = App_Log_EventSubscriber.convertEventToRecord(logEvent);
+    App_Log_EventSubscriber.handleMessage(new List<App_Log__e>{ logEvent });
+
+    Test.stopTest();
 
     // Assert
-    Assert.isNull(record.Exception_Message__c, 'Exception message devrait rester null');
-    Assert.isNull(record.Exception_Stack_Trace__c, 'Stack trace devrait rester null');
-    Assert.areEqual('ERROR', record.Level__c);
+    List<AppLogging__c> logs = [
+      SELECT Id, Exception_Message__c, Exception_Stack_Trace__c
+      FROM AppLogging__c
+      WHERE Request_Id__c = 'REQ-NULL'
+    ];
+    Assert.isTrue(logs.size() > 0, 'Log devrait être persisté');
+    Assert.isNull(logs[0].Exception_Message__c, 'Exception message devrait rester null');
+    Assert.isNull(logs[0].Exception_Stack_Trace__c, 'Stack trace devrait rester null');
   }
 
   /**
@@ -122,7 +131,7 @@ private class App_Log_EventSubscriberTest {
     Test.stopTest();
 
     // Assert
-    List<App_Log__c> insertedLogs = [SELECT Id FROM App_Log__c WHERE Class_Name__c = 'BulkTest'];
+    List<AppLogging__c> insertedLogs = [SELECT Id FROM AppLogging__c WHERE Class_Name__c = 'BulkTest'];
     Assert.areEqual(10, insertedLogs.size(), '10 logs devraient être persistés');
   }
 
@@ -175,9 +184,9 @@ private class App_Log_EventSubscriberTest {
     Test.stopTest();
 
     // Assert
-    List<App_Log__c> logs = [
+    List<AppLogging__c> logs = [
       SELECT Id, Exception_Message__c, Exception_Stack_Trace__c
-      FROM App_Log__c
+      FROM AppLogging__c
       WHERE Request_Id__c = 'REQ-EXC'
     ];
     Assert.isTrue(logs.size() > 0, 'Log devrait être persisté');
