@@ -1,128 +1,73 @@
 /**
  * @author Hamza Amari
- * @date 28/12/2025
- * @description Tests unitaires pour App_Log_EventTriggerHandler.
- * 
+ * @date 30/12/2025
+ * @description Tests unitaires pour App_Log_EventSubscriber.
  * Couverture de test :
- * - Persistance des événements App_Log__e
+ * - Gestion des événements entrants
  * - Conversion événement → enregistrement
+ * - Persistance en base de données (bulk-safe)
  * - Gestion des erreurs sans interruption
  * - Respect du flag de persistance
- * - Bulkification correcte
  */
 @IsTest
 private class App_Log_EventSubscriberTest {
   /**
-   * @description Tester la persistance simple d'un log.
+   * @description Tester que les événements sont convertis en enregistrements.
+   */
+  @IsTest
+  static void testEventConversionToRecord() {
+    // Arrange
+    App_Log__e logEvent = new App_Log__e(
+      Level__c = 'INFO',
+      Message__c = 'Message de test',
+      Request_Id__c = 'REQ-12345',
+      Class_Name__c = 'TestClass',
+      Method_Name__c = 'testMethod',
+      User_Id__c = UserInfo.getUserId(),
+      Exception_Message__c = null,
+      Exception_Stack_Trace__c = null
+    );
+
+    // Act
+    App_Log__c record = App_Log_EventSubscriber.convertEventToRecord(logEvent);
+
+    // Assert
+    Assert.areEqual('INFO', record.Level__c, 'Level devrait être mappé');
+    Assert.areEqual('Message de test', record.Message__c, 'Message devrait être mappé');
+    Assert.areEqual('REQ-12345', record.Request_Id__c, 'Request ID devrait être mappé');
+    Assert.areEqual('TestClass', record.Class_Name__c, 'Class name devrait être mappé');
+    Assert.areEqual('testMethod', record.Method_Name__c, 'Method name devrait être mappé');
+  }
+
+  /**
+   * @description Tester que les logs sont persistés avec succès.
    */
   @IsTest
   static void testLogPersistence() {
     // Arrange
-    App_Log__e logEvent = new App_Log__e(
-      Level__c = 'INFO',
-      Message__c = 'Test message',
-      Source__c = 'TestClass.testMethod',
-      RecordId__c = 'TEST-001'
-    );
-
     Test.startTest();
 
-    // Act - Publier l'événement
-    EventBus.publish(logEvent);
-
-    Test.stopTest();
-
-    // Assert
-    List<App_Log__c> insertedLogs = [
-      SELECT Id, Level__c, Message__c, Source__c
-      FROM App_Log__c
-      WHERE Source__c = 'TestClass.testMethod'
-      LIMIT 1
-    ];
-
-    Assert.isTrue(insertedLogs.size() > 0, 'Log devrait être persisté dans la base de données');
-    Assert.areEqual('INFO', insertedLogs[0].Level__c, 'Level devrait être persisté');
-    Assert.areEqual('Test message', insertedLogs[0].Message__c, 'Message devrait être persisté');
-  }
-
-  /**
-   * @description Tester la persistance en masse d'événements.
-   */
-  @IsTest
-  static void testBulkPersistence() {
-    // Arrange
-    List<App_Log__e> logEvents = new List<App_Log__e>();
-    for (Integer i = 0; i < 10; i++) {
-      logEvents.add(
-        new App_Log__e(
-          Level__c = 'DEBUG',
-          Message__c = 'Bulk message ' + i,
-          Source__c = 'BulkTest.testBulk',
-          RecordId__c = 'BULK-' + i
-        )
-      );
-    }
-
-    Test.startTest();
-
-    // Act
-    EventBus.publish(logEvents);
-
-    Test.stopTest();
-
-    // Assert
-    List<App_Log__c> insertedLogs = [
-      SELECT Id FROM App_Log__c WHERE Source__c = 'BulkTest.testBulk'
-    ];
-    Assert.areEqual(10, insertedLogs.size(), '10 logs devraient être persistés');
-  }
-
-  /**
-   * @description Tester que tous les champs disponibles sont mappés.
-   */
-  @IsTest
-  static void testAllAvailableFieldsMapped() {
-    // Arrange
     App_Log__e logEvent = new App_Log__e(
       Level__c = 'ERROR',
-      Message__c = 'Complete log message',
-      Source__c = 'FullTest.testFull',
-      RecordId__c = 'REC-FULL-001',
-      CorrelationId__c = 'CORR-FULL-001',
-      Tags__c = 'error,test,complete',
-      StackTrace__c = 'Full stack trace content'
+      Message__c = 'Test de persistance',
+      Request_Id__c = 'REQ-67890',
+      Class_Name__c = 'PersistenceTest',
+      Method_Name__c = 'testMethod',
+      User_Id__c = UserInfo.getUserId()
     );
 
-    Test.startTest();
-
     // Act
-    EventBus.publish(logEvent);
+    App_Log_EventSubscriber.handleMessage(new List<App_Log__e>{ logEvent });
 
     Test.stopTest();
 
     // Assert
     List<App_Log__c> insertedLogs = [
-      SELECT
-        Level__c,
-        Message__c,
-        Source__c,
-        RecordId__c,
-        CorrelationId__c,
-        Tags__c,
-        StackTrace__c
-      FROM App_Log__c
-      WHERE Source__c = 'FullTest.testFull'
-      LIMIT 1
+      SELECT Id, Level__c, Message__c FROM App_Log__c WHERE Request_Id__c = 'REQ-67890'
     ];
-
-    Assert.isTrue(insertedLogs.size() > 0, 'Log should be persisted');
+    Assert.isTrue(insertedLogs.size() > 0, 'Log devrait être persisté dans la base de données');
     Assert.areEqual('ERROR', insertedLogs[0].Level__c);
-    Assert.areEqual('Complete log message', insertedLogs[0].Message__c);
-    Assert.areEqual('FullTest.testFull', insertedLogs[0].Source__c);
-    Assert.areEqual('REC-FULL-001', insertedLogs[0].RecordId__c);
-    Assert.areEqual('CORR-FULL-001', insertedLogs[0].CorrelationId__c);
-    Assert.areEqual('error,test,complete', insertedLogs[0].Tags__c);
-    Assert.areEqual('Full stack trace content', insertedLogs[0].StackTrace__c);
+    Assert.areEqual('Test de persistance', insertedLogs[0].Message__c);
   }
 
   /**
@@ -132,70 +77,110 @@ private class App_Log_EventSubscriberTest {
   static void testConversionHandlesNull() {
     // Arrange
     App_Log__e logEvent = new App_Log__e(
-      Level__c = 'WARN',
-      Message__c = 'Message with nulls',
-      Source__c = 'NullTest.testNull',
-      RecordId__c = null,
-      CorrelationId__c = null,
-      Tags__c = null,
-      StackTrace__c = null
+      Level__c = 'ERROR',
+      Message__c = 'Erreur sans exception',
+      Request_Id__c = 'REQ-NULL',
+      Class_Name__c = 'ErrorClass',
+      Method_Name__c = 'errorMethod',
+      User_Id__c = UserInfo.getUserId(),
+      Exception_Message__c = null,
+      Exception_Stack_Trace__c = null
     );
 
+    // Act
+    App_Log__c record = App_Log_EventSubscriber.convertEventToRecord(logEvent);
+
+    // Assert
+    Assert.isNull(record.Exception_Message__c, 'Exception message devrait rester null');
+    Assert.isNull(record.Exception_Stack_Trace__c, 'Stack trace devrait rester null');
+    Assert.areEqual('ERROR', record.Level__c);
+  }
+
+  /**
+   * @description Tester la persistance en masse.
+   */
+  @IsTest
+  static void testBulkPersistence() {
+    // Arrange
     Test.startTest();
 
+    List<App_Log__e> logEvents = new List<App_Log__e>();
+    for (Integer i = 0; i < 10; i++) {
+      logEvents.add(
+        new App_Log__e(
+          Level__c = 'INFO',
+          Message__c = 'Message en masse ' + i,
+          Request_Id__c = 'BULK-' + i,
+          Class_Name__c = 'BulkTest'
+        )
+      );
+    }
+
     // Act
-    EventBus.publish(logEvent);
+    App_Log_EventSubscriber.handleMessage(logEvents);
 
     Test.stopTest();
 
     // Assert
-    List<App_Log__c> insertedLogs = [
-      SELECT
-        Level__c,
-        Message__c,
-        RecordId__c,
-        Tags__c,
-        StackTrace__c
-      FROM App_Log__c
-      WHERE Source__c = 'NullTest.testNull'
-      LIMIT 1
-    ];
-
-    Assert.isTrue(insertedLogs.size() > 0, 'Log should persist even with null values');
-    Assert.isNull(insertedLogs[0].RecordId__c, 'Null RecordId should remain null');
-    Assert.isNull(insertedLogs[0].Tags__c, 'Null Tags should remain null');
-    Assert.isNull(insertedLogs[0].StackTrace__c, 'Null StackTrace should remain null');
-    Assert.areEqual('WARN', insertedLogs[0].Level__c, 'Level should still be mapped');
+    List<App_Log__c> insertedLogs = [SELECT Id FROM App_Log__c WHERE Class_Name__c = 'BulkTest'];
+    Assert.areEqual(10, insertedLogs.size(), '10 logs devraient être persistés');
   }
 
   /**
-   * @description Tester la gestion des erreurs sans interruption.
+   * @description Tester que les erreurs sont gérées gracieusement sans interruption.
    */
   @IsTest
   static void testErrorHandlingGraceful() {
     // Arrange
-    App_Log__e logEvent = new App_Log__e(
-      Level__c = 'INFO',
-      Message__c = 'Error handling test',
-      Source__c = 'ErrorTest.testError'
-    );
-
     Test.startTest();
 
-    // Act - L'événement doit être publié sans exception
+    App_Log__e logEvent = new App_Log__e(
+      Level__c = 'INFO',
+      Message__c = 'Test de gestion d\'erreur',
+      Request_Id__c = 'REQ-ERROR-TEST'
+    );
+
+    // Act & Assert - Ne devrait pas lever d'exception
     try {
-      EventBus.publish(logEvent);
-      Assert.isTrue(true, 'Event should publish without exception');
+      App_Log_EventSubscriber.handleMessage(new List<App_Log__e>{ logEvent });
+      Assert.isTrue(true, 'Pas d\'exception levée');
     } catch (Exception e) {
-      Assert.fail('Publishing should not throw exception: ' + e.getMessage());
+      Assert.fail('Erreur ne devrait pas être levée : ' + e.getMessage());
     }
 
     Test.stopTest();
+  }
 
-    // Assert - Le log devrait quand même persister
-    List<App_Log__c> insertedLogs = [
-      SELECT Id FROM App_Log__c WHERE Source__c = 'ErrorTest.testError'
+  /**
+   * @description Tester que les logs avec exceptions sont stockés correctement.
+   */
+  @IsTest
+  static void testLogWithException() {
+    // Arrange
+    Test.startTest();
+
+    App_Log__e logEvent = new App_Log__e(
+      Level__c = 'ERROR',
+      Message__c = 'Log avec exception',
+      Request_Id__c = 'REQ-EXC',
+      Class_Name__c = 'ExceptionTest',
+      Method_Name__c = 'testMethod',
+      Exception_Message__c = 'DML Exception: Insert failed',
+      Exception_Stack_Trace__c = 'Line 42: insert new Account()'
+    );
+
+    // Act
+    App_Log_EventSubscriber.handleMessage(new List<App_Log__e>{ logEvent });
+
+    Test.stopTest();
+
+    // Assert
+    List<App_Log__c> logs = [
+      SELECT Id, Exception_Message__c, Exception_Stack_Trace__c
+      FROM App_Log__c
+      WHERE Request_Id__c = 'REQ-EXC'
     ];
-    Assert.isTrue(insertedLogs.size() >= 0, 'Handler should gracefully handle processing');
+    Assert.isTrue(logs.size() > 0, 'Log devrait être persisté');
+    Assert.isTrue(logs[0].Exception_Message__c.contains('DML Exception'));
   }
 }
