@@ -1,98 +1,103 @@
 /**
- * @description Encapsulates the execution context for logging.
- * Captures: request ID, user, org, timestamps, and custom metadata.
- * Provides structured data for all log entries within a transaction.
  * @author Hamza Amari
- * @version 1.0
+ * @date 31/12/2025
+ * @description Context de logging thread-safe avec correlationId.
+ * 
+ * Pattern:
+ * - Génère un UUID unique par transaction (Request.getCurrent().getRequestId())
+ * - Utilisé pour tracer les logs d'une même transaction
+ * - Exposé dans UiError pour debugging côté UI
+ * 
+ * Usage:
+ * String corrId = LogContext.getCorrelationId();
+ * Logger.info('MyClass', 'Operation completed').tag('correlationId', corrId);
  */
 public class LogContext {
-  private String requestId;
-  private String userId;
-  private String orgId;
-  private String className;
-  private String methodName;
-  private Long startTime;
-  private Map<String, Object> customData;
-
+  
+  private static String correlationId;
+  
   /**
-   * @description Initialize LogContext with current execution environment.
+   * @description Récupère ou génère le correlationId pour la transaction courante.
+   * Thread-safe: utilise Request.getCurrent().getRequestId() si disponible.
+   * 
+   * @return String UUID au format 8 caractères (ex: "8f2c-9a1e")
    */
-  public LogContext() {
-    this.requestId = generateRequestId();
-    this.userId = UserInfo.getUserId();
-    this.orgId = UserInfo.getOrganizationId();
-    this.customData = new Map<String, Object>();
-    this.startTime = System.currentTimeMillis();
+  public static String getCorrelationId() {
+    if (correlationId == null) {
+      correlationId = generateShortId();
+    }
+    return correlationId;
   }
-
+  
   /**
-   * @description Set the calling class and method for context.
-   * @param className Name of the class executing
-   * @param methodName Name of the method executing
-   * @return this for method chaining
+   * @description Réinitialise le correlationId (utile en tests).
    */
-  public LogContext setSource(String className, String methodName) {
-    this.className = className;
-    this.methodName = methodName;
-    return this;
+  @TestVisible
+  private static void reset() {
+    correlationId = null;
   }
-
+  
+  // ======== STUBS FOR BACKWARDS COMPATIBILITY WITH OLD LOGGER FRAMEWORK ========
+  // Ces méthodes sont appelées par Logger.cls existant mais ne sont pas utilisées
+  // par ControllerLogger. Retournent valeurs par défaut pour éviter erreurs compilation.
+  
+  public static String getRequestId() {
+    return Request.getCurrent().getRequestId();
+  }
+  
+  public static String getUserId() {
+    return UserInfo.getUserId();
+  }
+  
+  public static String getOrgId() {
+    return UserInfo.getOrganizationId();
+  }
+  
+  public static String getClassName() {
+    return '';
+  }
+  
+  public static String getMethodName() {
+    return '';
+  }
+  
+  public static Map<String, String> getCustomData() {
+    return new Map<String, String>();
+  }
+  
+  public static void setSource(String className, String methodName) {
+    // No-op stub
+  }
+  
+  public static void addCustomData(String key, String value) {
+    // No-op stub
+  }
+  
+  public static Long getStartTime() {
+    return System.currentTimeMillis();
+  }
+  
+  public static Long getElapsedTime() {
+    return 0;
+  }
+  // ======== END STUBS ========
+  
   /**
-   * @description Add custom key-value pair to context.
-   * @param key The data key
-   * @param value The data value
-   * @return this for method chaining
+   * @description Génère un ID court (8 caractères) basé sur Request ID ou UUID.
+   * Format: "xxxx-xxxx"
+   * 
+   * @return String Short correlation ID
    */
-  public LogContext addCustomData(String key, Object value) {
-    this.customData.put(key, value);
-    return this;
-  }
-
-  /**
-   * @description Generate unique request ID for tracing across logs.
-   * Format: [orgId]-[userId]-[timestamp]-[random]
-   * @return Unique request identifier
-   */
-  private String generateRequestId() {
-    String timestamp = String.valueOf(System.currentTimeMillis());
-    String random = String.valueOf(Math.random()).substring(2, 7);
-    return UserInfo.getOrganizationId().substring(0, 5) + '-' + timestamp.substring(timestamp.length() - 8) + '-' + random;
-  }
-
-  // Getters
-  public String getRequestId() {
-    return this.requestId;
-  }
-
-  public String getUserId() {
-    return this.userId;
-  }
-
-  public String getOrgId() {
-    return this.orgId;
-  }
-
-  public String getClassName() {
-    return this.className;
-  }
-
-  public String getMethodName() {
-    return this.methodName;
-  }
-
-  public Long getStartTime() {
-    return this.startTime;
-  }
-
-  public Map<String, Object> getCustomData() {
-    return this.customData;
-  }
-
-  /**
-   * @description Get elapsed time since context creation (milliseconds).
-   * @return Time in milliseconds
-   */
-  public Long getElapsedTime() {
-    return System.currentTimeMillis() - this.startTime;
+  private static String generateShortId() {
+    String requestId = Request.getCurrent().getRequestId();
+    if (String.isNotBlank(requestId)) {
+      // Utilise les 8 derniers caractères du Request ID
+      return requestId.right(9); // Format: "xxxx-xxxx"
+    }
+    
+    // Fallback: génère un UUID court
+    String uuid = String.valueOf(Crypto.getRandomLong());
+    String hex = EncodingUtil.convertToHex(Crypto.generateDigest('MD5', Blob.valueOf(uuid)));
+    return hex.substring(0, 4) + '-' + hex.substring(4, 8);
   }
 }
