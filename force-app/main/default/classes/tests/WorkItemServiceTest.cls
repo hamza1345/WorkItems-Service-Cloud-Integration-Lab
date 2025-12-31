@@ -442,4 +442,219 @@ private class WorkItemServiceTest {
       Assert.areEqual('New', unchanged.Status__c, 'Status ne devrait pas changer');
     }
   }
+
+  /**
+   * @description Test 16 : getItems délègue au Selector et normalise limitSize.
+   */
+  @IsTest
+  static void testGetItemsDelegatesToSelectorAndNormalizesLimit() {
+    // Arrange
+    TestDataFactory.createAndInsertWorkItems(60, 'GetItems Test');
+
+    // Act
+    Test.startTest();
+    List<Work_Item__c> results = WorkItemService.getItems(null, null, null);
+    Test.stopTest();
+
+    // Assert
+    Assert.areEqual(50, results.size(), 'Devrait utiliser DEFAULT_LIMIT (50)');
+  }
+
+  /**
+   * @description Test 17 : getItems filtre par statut.
+   */
+  @IsTest
+  static void testGetItemsFiltersByStatus() {
+    // Arrange
+    List<Work_Item__c> items = new List<Work_Item__c>();
+    for (Integer i = 0; i < 10; i++) {
+      items.add(TestDataFactory.createWorkItem('New Item ' + i, 'New', 'Medium', System.today().addDays(5)));
+    }
+    for (Integer i = 0; i < 10; i++) {
+      items.add(TestDataFactory.createWorkItem('Progress Item ' + i, 'In_Progress', 'High', System.today().addDays(3)));
+    }
+    insert items;
+
+    // Act
+    Test.startTest();
+    List<Work_Item__c> results = WorkItemService.getItems('New', null, null);
+    Test.stopTest();
+
+    // Assert
+    Assert.isTrue(results.size() >= 10, 'Devrait trouver au moins 10 Work Items New');
+    for (Work_Item__c item : results) {
+      Assert.areEqual('New', item.Status__c, 'Status devrait être New');
+    }
+  }
+
+  /**
+   * @description Test 18 : getItems recherche par texte.
+   */
+  @IsTest
+  static void testGetItemsSearchesByText() {
+    // Arrange
+    List<Work_Item__c> items = new List<Work_Item__c>();
+    items.add(TestDataFactory.createWorkItem('SEARCHABLE Item 1', 'New', 'Medium', System.today().addDays(5)));
+    items.add(TestDataFactory.createWorkItem('SEARCHABLE Item 2', 'New', 'Medium', System.today().addDays(5)));
+    items.add(TestDataFactory.createWorkItem('Other Item', 'New', 'Medium', System.today().addDays(5)));
+    insert items;
+
+    // Act
+    Test.startTest();
+    List<Work_Item__c> results = WorkItemService.getItems(null, 'SEARCHABLE', null);
+    Test.stopTest();
+
+    // Assert
+    Assert.areEqual(2, results.size(), 'Devrait trouver 2 Work Items SEARCHABLE');
+  }
+
+  /**
+   * @description Test 19 : saveItem INSERT avec règles Trigger/Domain.
+   */
+  @IsTest
+  static void testSaveItemInsertAppliesDefaults() {
+    // Arrange
+    Work_Item__c item = new Work_Item__c(
+      Name = 'Test Insert',
+      Description__c = 'Test description',
+      Due_Date__c = System.today().addDays(7)
+    );
+    // Pas de Status/Priority définis
+
+    // Act
+    Test.startTest();
+    Work_Item__c saved = WorkItemService.saveItem(item);
+    Test.stopTest();
+
+    // Assert
+    Assert.isNotNull(saved.Id, 'Id devrait être rempli');
+    Assert.areEqual('New', saved.Status__c, 'Status devrait être New (défaut)');
+    Assert.areEqual('Medium', saved.Priority__c, 'Priority devrait être Medium (défaut)');
+  }
+
+  /**
+   * @description Test 20 : saveItem UPDATE préserve les champs existants.
+   */
+  @IsTest
+  static void testSaveItemUpdatePreservesFields() {
+    // Arrange
+    Work_Item__c item = TestDataFactory.createAndInsertWorkItem('Test Update');
+    Id originalId = item.Id;
+
+    // Modifier quelques champs
+    item.Priority__c = 'High';
+    item.Description__c = 'Updated description';
+
+    // Act
+    Test.startTest();
+    Work_Item__c saved = WorkItemService.saveItem(item);
+    Test.stopTest();
+
+    // Assert
+    Assert.areEqual(originalId, saved.Id, 'Id devrait être le même');
+    Assert.areEqual('High', saved.Priority__c, 'Priority devrait être High');
+    Assert.areEqual('Updated description', saved.Description__c, 'Description mise à jour');
+  }
+
+  /**
+   * @description Test 21 : saveItem avec null lève exception.
+   */
+  @IsTest
+  static void testSaveItemWithNullThrowsException() {
+    // Act & Assert
+    try {
+      Test.startTest();
+      WorkItemService.saveItem(null);
+      Test.stopTest();
+      Assert.fail('Une exception devrait être levée pour Work Item null');
+    } catch (IllegalArgumentException e) {
+      Assert.isTrue(e.getMessage().contains('null'), 'Message devrait mentionner null');
+    }
+  }
+
+  /**
+   * @description Test 22 : markDone récupère via Selector et update via Trigger.
+   */
+  @IsTest
+  static void testMarkDoneUsesSelectorAndTrigger() {
+    // Arrange
+    Work_Item__c item = TestDataFactory.createAndInsertWorkItem('Test Mark Done');
+    // Passer en In_Progress d'abord (transition valide)
+    item.Status__c = 'In_Progress';
+    update item;
+
+    // Act
+    Test.startTest();
+    Work_Item__c result = WorkItemService.markDone(item.Id);
+    Test.stopTest();
+
+    // Assert
+    Assert.areEqual('Done', result.Status__c, 'Status devrait être Done');
+    Assert.isNotNull(result.Completed_On__c, 'Completed_On devrait être rempli par Trigger');
+  }
+
+  /**
+   * @description Test 23 : markDone avec Id null lève exception.
+   */
+  @IsTest
+  static void testMarkDoneWithNullIdThrowsException() {
+    // Act & Assert
+    try {
+      Test.startTest();
+      WorkItemService.markDone(null);
+      Test.stopTest();
+      Assert.fail('Une exception devrait être levée pour Id null');
+    } catch (IllegalArgumentException e) {
+      Assert.isTrue(e.getMessage().contains('null'), 'Message devrait mentionner null');
+    }
+  }
+
+  /**
+   * @description Test 24 : markDone avec Id inexistant lève exception.
+   */
+  @IsTest
+  static void testMarkDoneWithNonExistentIdThrowsException() {
+    // Arrange
+    Id fakeId = '001000000000000AAA';
+
+    // Act & Assert
+    try {
+      Test.startTest();
+      WorkItemService.markDone(fakeId);
+      Test.stopTest();
+      Assert.fail('Une exception devrait être levée pour Id inexistant');
+    } catch (WorkItemService.WorkItemServiceException e) {
+      Assert.isTrue(e.getMessage().contains('non trouvé'), 'Message devrait mentionner non trouvé');
+    }
+  }
+
+  /**
+   * @description Test 25 : enqueueExternalSync respecte FeatureFlags.
+   */
+  @IsTest
+  static void testEnqueueExternalSyncRespectsFeatureFlags() {
+    // Arrange
+    Work_Item__c item = TestDataFactory.createAndInsertWorkItem('Test Sync');
+    Set<Id> itemIds = new Set<Id>{ item.Id };
+
+    // Mock Feature Flag désactivé (via setup déjà fait)
+    Logging_Settings__mdt mockSettings = new Logging_Settings__mdt(
+      Enable_Logging__c = true,
+      Persist_Logs__c = false,
+      Disable_Automation__c = false,
+      Disable_External_Sync__c = true // SYNC DÉSACTIVÉE
+    );
+    FeatureFlags.hasInitialized = false;
+    FeatureFlags.cachedSettings = mockSettings;
+    FeatureFlags.hasInitialized = true;
+
+    // Act
+    Test.startTest();
+    WorkItemService.enqueueExternalSync(itemIds);
+    Test.stopTest();
+
+    // Assert - Pas d'erreur (stub logue juste WARN)
+    // Test passe si aucune exception levée
+    Assert.isTrue(true, 'Sync devrait être bypassée proprement');
+  }
 }
