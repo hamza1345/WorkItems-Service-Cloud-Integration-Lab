@@ -87,8 +87,9 @@ private class WorkItemServiceTest {
         'EXT-999'
       );
       Test.stopTest();
-      Assert.fail('Une exception devrait être levée pour External_Id dupliqué');
-    } catch (WorkItemService.WorkItemServiceException e) {
+      Assert.fail('Une BusinessException devrait être levée pour External_Id dupliqué');
+    } catch (BusinessException e) {
+      Assert.areEqual('CREATE_ITEM_DUPLICATE_EXTERNAL_ID', e.getErrorCode(), 'Code devrait être CREATE_ITEM_DUPLICATE_EXTERNAL_ID');
       Assert.isTrue(
         e.getMessage().contains('existe déjà'),
         'Message devrait mentionner doublon'
@@ -145,8 +146,9 @@ private class WorkItemServiceTest {
       Test.startTest();
       WorkItemService.updateWorkItem(fakeId, updates);
       Test.stopTest();
-      Assert.fail('Une exception devrait être levée pour Id inexistant');
-    } catch (WorkItemService.WorkItemServiceException e) {
+      Assert.fail('Une BusinessException devrait être levée pour Id inexistant');
+    } catch (BusinessException e) {
+      Assert.areEqual('UPDATE_ITEM_NOT_FOUND', e.getErrorCode(), 'Code devrait être UPDATE_ITEM_NOT_FOUND');
       Assert.isTrue(
         e.getMessage().contains('non trouvé'),
         'Message devrait mentionner Work Item non trouvé'
@@ -280,8 +282,9 @@ private class WorkItemServiceTest {
       Test.startTest();
       WorkItemService.deleteWorkItem(item.Id);
       Test.stopTest();
-      Assert.fail('Une exception devrait être levée pour Work Item Done');
-    } catch (WorkItemService.WorkItemServiceException e) {
+      Assert.fail('Une BusinessException devrait être levée pour Work Item Done');
+    } catch (BusinessException e) {
+      Assert.areEqual('DELETE_ITEM_DONE_STATUS', e.getErrorCode(), 'Code devrait être DELETE_ITEM_DONE_STATUS');
       Assert.isTrue(
         e.getMessage().contains('terminé'),
         'Message devrait mentionner Work Item terminé'
@@ -557,23 +560,7 @@ private class WorkItemServiceTest {
   }
 
   /**
-   * @description Test 21 : saveItem avec null lève exception.
-   */
-  @IsTest
-  static void testSaveItemWithNullThrowsException() {
-    // Act & Assert
-    try {
-      Test.startTest();
-      WorkItemService.saveItem(null);
-      Test.stopTest();
-      Assert.fail('Une exception devrait être levée pour Work Item null');
-    } catch (IllegalArgumentException e) {
-      Assert.isTrue(e.getMessage().contains('null'), 'Message devrait mentionner null');
-    }
-  }
-
-  /**
-   * @description Test 22 : markDone récupère via Selector et update via Trigger.
+   * @description Test 21 : markDone récupère via Selector et update via Trigger.
    */
   @IsTest
   static void testMarkDoneUsesSelectorAndTrigger() {
@@ -594,23 +581,7 @@ private class WorkItemServiceTest {
   }
 
   /**
-   * @description Test 23 : markDone avec Id null lève exception.
-   */
-  @IsTest
-  static void testMarkDoneWithNullIdThrowsException() {
-    // Act & Assert
-    try {
-      Test.startTest();
-      WorkItemService.markDone(null);
-      Test.stopTest();
-      Assert.fail('Une exception devrait être levée pour Id null');
-    } catch (IllegalArgumentException e) {
-      Assert.isTrue(e.getMessage().contains('null'), 'Message devrait mentionner null');
-    }
-  }
-
-  /**
-   * @description Test 24 : markDone avec Id inexistant lève exception.
+   * @description Test 22 : markDone avec Id inexistant lève BusinessException.
    */
   @IsTest
   static void testMarkDoneWithNonExistentIdThrowsException() {
@@ -622,14 +593,15 @@ private class WorkItemServiceTest {
       Test.startTest();
       WorkItemService.markDone(fakeId);
       Test.stopTest();
-      Assert.fail('Une exception devrait être levée pour Id inexistant');
-    } catch (WorkItemService.WorkItemServiceException e) {
+      Assert.fail('Une BusinessException devrait être levée pour Id inexistant');
+    } catch (BusinessException e) {
+      Assert.areEqual('MARK_DONE_NOT_FOUND', e.getErrorCode(), 'Code devrait être MARK_DONE_NOT_FOUND');
       Assert.isTrue(e.getMessage().contains('non trouvé'), 'Message devrait mentionner non trouvé');
     }
   }
 
   /**
-   * @description Test 25 : enqueueExternalSync respecte FeatureFlags.
+   * @description Test 23 : enqueueExternalSync respecte FeatureFlags.
    */
   @IsTest
   static void testEnqueueExternalSyncRespectsFeatureFlags() {
@@ -656,5 +628,39 @@ private class WorkItemServiceTest {
     // Assert - Pas d'erreur (stub logue juste WARN)
     // Test passe si aucune exception levée
     Assert.isTrue(true, 'Sync devrait être bypassée proprement');
+  }
+
+  /**
+   * @description Test 24 : saveItem avec null lève BusinessException avec code SAVE_ITEM_NULL.
+   */
+  @IsTest
+  static void testSaveItemWithNullThrowsBusinessException() {
+    // Act & Assert
+    try {
+      Test.startTest();
+      WorkItemService.saveItem(null);
+      Test.stopTest();
+      Assert.fail('Une BusinessException devrait être levée pour Work Item null');
+    } catch (BusinessException e) {
+      Assert.areEqual('SAVE_ITEM_NULL', e.getErrorCode(), 'Code devrait être SAVE_ITEM_NULL');
+      Assert.isTrue(e.getMessage().contains('null'), 'Message devrait mentionner null');
+    }
+  }
+
+  /**
+   * @description Test 25 : markDone avec null Id lève BusinessException avec code MARK_DONE_NULL_ID.
+   */
+  @IsTest
+  static void testMarkDoneWithNullIdThrowsBusinessException() {
+    // Act & Assert
+    try {
+      Test.startTest();
+      WorkItemService.markDone(null);
+      Test.stopTest();
+      Assert.fail('Une BusinessException devrait être levée pour Id null');
+    } catch (BusinessException e) {
+      Assert.areEqual('MARK_DONE_NULL_ID', e.getErrorCode(), 'Code devrait être MARK_DONE_NULL_ID');
+      Assert.isTrue(e.getMessage().contains('null'), 'Message devrait mentionner null');
+    }
   }
 }

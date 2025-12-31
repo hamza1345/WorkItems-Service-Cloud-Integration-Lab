@@ -62,12 +62,14 @@ public with sharing class WorkItemService {
    * 
    * @param item Work_Item__c à sauvegarder (avec ou sans Id)
    * @return Work_Item__c sauvegardé avec tous les champs
+   * @throws BusinessException si erreur métier (validation, null, etc.)
+   * @throws DmlException si erreur technique base de données
    */
   public static Work_Item__c saveItem(Work_Item__c item) {
     if (item == null) {
       String errorMessage = 'Work Item ne peut pas être null';
       LOGGER.error('saveItem', errorMessage);
-      throw new IllegalArgumentException(errorMessage);
+      throw BusinessException.withCode('SAVE_ITEM_NULL').withMessage(errorMessage);
     }
 
     try {
@@ -92,10 +94,13 @@ public with sharing class WorkItemService {
       return WorkItemSelector.getById(item.Id);
     } catch (DmlException e) {
       LOGGER.error('saveItem', 'Erreur DML lors de la sauvegarde', e);
-      throw e; // Re-throw pour que l'appelant puisse gérer
-    } catch (Exception e) {
-      LOGGER.error('saveItem', 'Erreur lors de la sauvegarde Work Item', e);
+      throw e; // Re-throw DML errors as-is (technical errors)
+    } catch (BusinessException e) {
+      // Re-throw business exceptions as-is
       throw e;
+    } catch (Exception e) {
+      LOGGER.error('saveItem', 'Erreur inattendue lors de la sauvegarde', e);
+      throw BusinessException.withCode('SAVE_ITEM_FAILED').withMessage('Erreur lors de la sauvegarde: ' + e.getMessage());
     }
   }
 
@@ -105,12 +110,14 @@ public with sharing class WorkItemService {
    * 
    * @param workItemId Id du Work Item à marquer comme Done
    * @return Work_Item__c mis à jour
+   * @throws BusinessException si erreur métier (null, non trouvé, etc.)
+   * @throws DmlException si erreur technique base de données
    */
   public static Work_Item__c markDone(Id workItemId) {
     if (workItemId == null) {
       String errorMessage = 'Work Item Id ne peut pas être null';
       LOGGER.error('markDone', errorMessage);
-      throw new IllegalArgumentException(errorMessage);
+      throw BusinessException.withCode('MARK_DONE_NULL_ID').withMessage(errorMessage);
     }
 
     try {
@@ -121,7 +128,7 @@ public with sharing class WorkItemService {
       if (item == null) {
         String errorMessage = 'Work Item non trouvé: ' + workItemId;
         LOGGER.error('markDone', errorMessage);
-        throw new WorkItemServiceException(errorMessage);
+        throw BusinessException.withCode('MARK_DONE_NOT_FOUND').withMessage(errorMessage);
       }
 
       // Set Status=Done
@@ -139,10 +146,13 @@ public with sharing class WorkItemService {
       return WorkItemSelector.getById(workItemId);
     } catch (DmlException e) {
       LOGGER.error('markDone', 'Erreur DML lors du marquage Done', e);
+      throw e; // Re-throw DML errors as-is (technical errors)
+    } catch (BusinessException e) {
+      // Re-throw business exceptions as-is
       throw e;
     } catch (Exception e) {
-      LOGGER.error('markDone', 'Erreur lors du marquage Done', e);
-      throw e;
+      LOGGER.error('markDone', 'Erreur inattendue lors du marquage Done', e);
+      throw BusinessException.withCode('MARK_DONE_FAILED').withMessage('Erreur lors du marquage Done: ' + e.getMessage());
     }
   }
 
@@ -221,7 +231,7 @@ public with sharing class WorkItemService {
       if (!errors.isEmpty()) {
         String errorMessage = String.join(errors, '; ');
         LOGGER.error('createWorkItem', 'Validation échouée : ' + errorMessage);
-        throw new WorkItemServiceException(errorMessage);
+        throw BusinessException.withCode('CREATE_ITEM_VALIDATION_FAILED').withMessage(errorMessage);
       }
 
       // Insérer
@@ -266,7 +276,7 @@ public with sharing class WorkItemService {
           ' existe déjà : ' +
           existing.Name;
         LOGGER.warn('createWorkItemWithExternalId', errorMessage);
-        throw new WorkItemServiceException(errorMessage);
+        throw BusinessException.withCode('CREATE_ITEM_DUPLICATE_EXTERNAL_ID').withMessage(errorMessage);
       }
 
       // Créer l'objet
@@ -317,7 +327,8 @@ public with sharing class WorkItemService {
    * @param workItemId Id du Work Item à mettre à jour
    * @param updates Map des champs à mettre à jour
    * @return Work_Item__c mis à jour
-   * @throws WorkItemServiceException si le Work Item n'existe pas
+   * @throws BusinessException si erreur métier (non trouvé, validation, etc.)
+   * @throws DmlException si erreur technique base de données
    */
   public static Work_Item__c updateWorkItem(
     Id workItemId,
@@ -331,7 +342,7 @@ public with sharing class WorkItemService {
       if (item == null) {
         String errorMessage = 'Work Item non trouvé : ' + workItemId;
         LOGGER.error('updateWorkItem', errorMessage);
-        throw new WorkItemServiceException(errorMessage);
+        throw BusinessException.withCode('UPDATE_ITEM_NOT_FOUND').withMessage(errorMessage);
       }
 
       // Appliquer les mises à jour
@@ -345,7 +356,7 @@ public with sharing class WorkItemService {
       if (!errors.isEmpty()) {
         String errorMessage = String.join(errors, '; ');
         LOGGER.error('updateWorkItem', 'Validation échouée : ' + errorMessage);
-        throw new WorkItemServiceException(errorMessage);
+        throw BusinessException.withCode('UPDATE_ITEM_VALIDATION_FAILED').withMessage(errorMessage);
       }
 
       // Mettre à jour
@@ -367,6 +378,8 @@ public with sharing class WorkItemService {
    * @param workItemId Id du Work Item
    * @param newStatus Nouveau statut
    * @return Work_Item__c mis à jour
+   * @throws BusinessException si erreur métier (non trouvé, transition invalide, etc.)
+   * @throws DmlException si erreur technique base de données
    */
   public static Work_Item__c updateStatus(Id workItemId, String newStatus) {
     try {
@@ -380,7 +393,7 @@ public with sharing class WorkItemService {
       if (item == null) {
         String errorMessage = 'Work Item non trouvé : ' + workItemId;
         LOGGER.error('updateStatus', errorMessage);
-        throw new WorkItemServiceException(errorMessage);
+        throw BusinessException.withCode('UPDATE_STATUS_NOT_FOUND').withMessage(errorMessage);
       }
 
       String oldStatus = item.Status__c;
@@ -393,7 +406,7 @@ public with sharing class WorkItemService {
           ' → ' +
           newStatus;
         LOGGER.warn('updateStatus', errorMessage);
-        throw new WorkItemServiceException(errorMessage);
+        throw BusinessException.withCode('UPDATE_STATUS_INVALID_TRANSITION').withMessage(errorMessage);
       }
 
       // Changer le statut
@@ -441,7 +454,8 @@ public with sharing class WorkItemService {
   /**
    * @description Supprime un Work Item.
    * @param workItemId Id du Work Item à supprimer
-   * @throws WorkItemServiceException si le Work Item est Done
+   * @throws BusinessException si erreur métier (non trouvé, statut Done, etc.)
+   * @throws DmlException si erreur technique base de données
    */
   public static void deleteWorkItem(Id workItemId) {
     try {
@@ -452,7 +466,7 @@ public with sharing class WorkItemService {
       if (item == null) {
         String errorMessage = 'Work Item non trouvé : ' + workItemId;
         LOGGER.error('deleteWorkItem', errorMessage);
-        throw new WorkItemServiceException(errorMessage);
+        throw BusinessException.withCode('DELETE_ITEM_NOT_FOUND').withMessage(errorMessage);
       }
 
       // Vérifier le statut
@@ -461,7 +475,7 @@ public with sharing class WorkItemService {
           'Impossible de supprimer un Work Item terminé. ' +
           'Veuillez d\'abord changer le statut.';
         LOGGER.warn('deleteWorkItem', errorMessage);
-        throw new WorkItemServiceException(errorMessage);
+        throw BusinessException.withCode('DELETE_ITEM_DONE_STATUS').withMessage(errorMessage);
       }
 
       // Supprimer
