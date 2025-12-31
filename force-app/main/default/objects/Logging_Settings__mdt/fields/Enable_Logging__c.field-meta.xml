@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Enable_Logging__c</fullName>
+    <label>Enable Logging</label>
+    <type>Checkbox</type>
+    <defaultValue>true</defaultValue>
+</CustomField>

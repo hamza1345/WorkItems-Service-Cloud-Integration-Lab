@@ -12,6 +12,28 @@
 @IsTest
 private class App_Log_EventSubscriberTest {
   /**
+   * @description Setup forcé pour chaque test : mock des settings avec Persist_Logs__c=true.
+   */
+  @TestSetup
+  static void setupTestData() {
+    // Créer un mock de Logging_Settings avec persistance activée
+    Logging_Settings__mdt mockSettings = new Logging_Settings__mdt(
+      DeveloperName = 'Default',
+      Enable_Logging__c = true,
+      Persist_Logs__c = true,
+      Min_Log_Level__c = 'DEBUG',
+      Performance_Logs__c = false,
+      Disable_Automation__c = false,
+      Disable_External_Sync__c = false
+    );
+    
+    // Forcer la réinitialisation du cache et injecter les settings mockées
+    FeatureFlags.hasInitialized = false;
+    FeatureFlags.cachedSettings = mockSettings;
+    FeatureFlags.hasInitialized = true;
+  }
+
+  /**
    * @description Tester que les événements sont convertis en enregistrements.
    */
   @IsTest
@@ -46,6 +68,14 @@ private class App_Log_EventSubscriberTest {
    */
   @IsTest
   static void testLogPersistence() {
+    // Forcer la configuration pour activer la persistance
+    Logging_Settings__mdt mockSettings = new Logging_Settings__mdt(
+      Persist_Logs__c = true
+    );
+    FeatureFlags.hasInitialized = false;
+    FeatureFlags.cachedSettings = mockSettings;
+    FeatureFlags.hasInitialized = true;
+
     // Arrange
     App_Log__e logEvent = new App_Log__e(
       Level__c = 'ERROR',
@@ -56,9 +86,9 @@ private class App_Log_EventSubscriberTest {
       User_Id__c = UserInfo.getUserId()
     );
 
-    // Act - Publier l'event pour déclencher le trigger
+    // Act - Appeler directement handleMessage car Platform Events ne sont pas synchrones en tests
     Test.startTest();
-    EventBus.publish(logEvent);
+    App_Log_EventSubscriber.handleMessage(new List<App_Log__e>{ logEvent });
     Test.stopTest();
 
     // Assert
@@ -75,9 +105,12 @@ private class App_Log_EventSubscriberTest {
    */
   @IsTest
   static void testConversionHandlesNull() {
-    // Arrange
-    Test.startTest();
+    // Forcer la configuration
+    FeatureFlags.hasInitialized = false;
+    FeatureFlags.cachedSettings = new Logging_Settings__mdt(Persist_Logs__c = true);
+    FeatureFlags.hasInitialized = true;
 
+    // Arrange
     App_Log__e logEvent = new App_Log__e(
       Level__c = 'ERROR',
       Message__c = 'Erreur sans exception',
@@ -90,8 +123,8 @@ private class App_Log_EventSubscriberTest {
     );
 
     // Act
+    Test.startTest();
     App_Log_EventSubscriber.handleMessage(new List<App_Log__e>{ logEvent });
-
     Test.stopTest();
 
     // Assert
@@ -110,9 +143,12 @@ private class App_Log_EventSubscriberTest {
    */
   @IsTest
   static void testBulkPersistence() {
-    // Arrange
-    Test.startTest();
+    // Forcer la configuration
+    FeatureFlags.hasInitialized = false;
+    FeatureFlags.cachedSettings = new Logging_Settings__mdt(Persist_Logs__c = true);
+    FeatureFlags.hasInitialized = true;
 
+    // Arrange
     List<App_Log__e> logEvents = new List<App_Log__e>();
     for (Integer i = 0; i < 10; i++) {
       logEvents.add(
@@ -126,8 +162,8 @@ private class App_Log_EventSubscriberTest {
     }
 
     // Act
+    Test.startTest();
     App_Log_EventSubscriber.handleMessage(logEvents);
-
     Test.stopTest();
 
     // Assert
@@ -165,9 +201,12 @@ private class App_Log_EventSubscriberTest {
    */
   @IsTest
   static void testLogWithException() {
-    // Arrange
-    Test.startTest();
+    // Forcer la configuration
+    FeatureFlags.hasInitialized = false;
+    FeatureFlags.cachedSettings = new Logging_Settings__mdt(Persist_Logs__c = true);
+    FeatureFlags.hasInitialized = true;
 
+    // Arrange
     App_Log__e logEvent = new App_Log__e(
       Level__c = 'ERROR',
       Message__c = 'Log avec exception',
@@ -179,8 +218,8 @@ private class App_Log_EventSubscriberTest {
     );
 
     // Act
+    Test.startTest();
     App_Log_EventSubscriber.handleMessage(new List<App_Log__e>{ logEvent });
-
     Test.stopTest();
 
     // Assert
