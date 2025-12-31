@@ -2,59 +2,70 @@
     <lightning-card title="Work Items" icon-name="standard:work_order">
         <!-- Filters Section -->
         <div slot="actions">
-            <lightning-combobox
-                label="Status"
-                value={selectedStatus}
-                options={statusOptions}
-                onchange={handleStatusChange}
-                placeholder="All Statuses"
-            ></lightning-combobox>
+            <lightning-button
+                label="Refresh"
+                icon-name="utility:refresh"
+                onclick={handleRefresh}
+                class="slds-m-right_small"
+            ></lightning-button>
         </div>
 
         <div class="slds-p-horizontal_small">
-            <!-- Search Bar -->
-            <lightning-input
-                type="search"
-                label="Search"
-                value={searchTerm}
-                onchange={handleSearchChange}
-                placeholder="Search work items..."
-                class="slds-m-bottom_small"
-            ></lightning-input>
-
-            <!-- Data Table -->
-            <template if:true={workItems.data}>
-                <lightning-datatable
-                    key-field="Id"
-                    data={workItems.data}
-                    columns={columns}
-                    onrowaction={handleRowAction}
-                    hide-checkbox-column
-                ></lightning-datatable>
-            </template>
+            <!-- Filters Row -->
+            <div class="slds-grid slds-gutters slds-m-bottom_small">
+                <div class="slds-col slds-size_1-of-2">
+                    <lightning-combobox
+                        label="Status"
+                        value={selectedStatus}
+                        options={statusOptions}
+                        onchange={handleStatusChange}
+                        placeholder="All"
+                    ></lightning-combobox>
+                </div>
+                <div class="slds-col slds-size_1-of-2">
+                    <lightning-input
+                        type="search"
+                        label="Search"
+                        value={searchKey}
+                        onchange={handleSearchChange}
+                        placeholder="Search by Name or Category..."
+                    ></lightning-input>
+                </div>
+            </div>
 
             <!-- Loading Spinner -->
-            <template if:true={workItems.loading}>
+            <template if:true={isLoading}>
                 <lightning-spinner alternative-text="Loading..." size="medium"></lightning-spinner>
             </template>
 
-            <!-- Error Message -->
-            <template if:true={workItems.error}>
-                <div class="slds-m-top_small">
-                    <div class="slds-notify slds-notify_alert slds-alert_error" role="alert">
-                        <span class="slds-assistive-text">Error</span>
-                        <h2>
-                            {workItems.error.body.message}
-                        </h2>
-                    </div>
-                </div>
-            </template>
+            <!-- Data Table -->
+            <template if:false={isLoading}>
+                <template if:true={hasItems}>
+                    <lightning-datatable
+                        key-field="Id"
+                        data={items}
+                        columns={columns}
+                        onrowaction={handleRowAction}
+                        hide-checkbox-column
+                    ></lightning-datatable>
+                </template>
 
-            <!-- No Data Message -->
-            <template if:true={noData}>
-                <div class="slds-text-align_center slds-m-vertical_large">
-                    <p class="slds-text-color_weak">No work items found</p>
-                </div>
+                <!-- No Data Message -->
+                <template if:true={noData}>
+                    <div class="slds-text-align_center slds-m-vertical_large">
+                        <p class="slds-text-color_weak">No records found</p>
+                    </div>
+                </template>
+
+                <!-- Error Message -->
+                <template if:true={error}>
+                    <div class="slds-m-top_small">
+                        <div class="slds-notify slds-notify_alert slds-alert_error" role="alert">
+                            <span class="slds-assistive-text">Error</span>
+                            <lightning-formatted-text value={error}></lightning-formatted-text>
+                        </div>
+                    </div>
+                </template>
             </template>
         </div>
     </lightning-card>
