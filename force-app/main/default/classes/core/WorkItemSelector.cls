@@ -1,213 +1,299 @@
 /**
  * @author Hamza Amari
- * @date 24/12/2025
- * @description Couche Sélecteur pour les requêtes de Work_Item__c.
- * Responsabilités :
- * - Centraliser toutes les requêtes SOQL pour Work_Item__c
- * - Créer des requêtes dynamiques basées sur les filtres
- * - Gérer la validation CRUD
- * - Implémenter les modèles de requête courants
- *
- * RÈGLE : C'est la SEULE classe avec des requêtes SOQL.
- * Toutes les méthodes doivent être marquées @TestVisible.
- * Pas de logique métier - uniquement la récupération de données.
+ * @date 31/12/2025
+ * @description Selector pour Work_Item__c.
+ * Centralise toutes les requêtes SOQL avec CRUD checks et logging.
+ * Suit le pattern Selector Layer de l'architecture enterprise.
  */
 public with sharing class WorkItemSelector {
-  private static final Logger LOGGER = LoggerFactory.getLogger('WorkItemSelector');
+  private static final Logger LOGGER = LoggerFactory.getLogger(
+    'WorkItemSelector'
+  );
 
   /**
-   * @description Obtenir l'élément de travail par Id avec tous les champs.
-   * @param workItemId Id à interroger
-   * @return Enregistrement de l'élément de travail ou null s'il n'est pas trouvé ou pas accessible
+   * @description Récupère tous les champs d'un Work Item.
+   * @return String contenant tous les champs séparés par des virgules
+   */
+  private static String getAllFields() {
+    return 'Id, Name, Status__c, Priority__c, Due_Date__c, ' +
+      'Completed_On__c, Description__c, Category__c, ' +
+      'External_Id__c, CreatedDate, LastModifiedDate';
+  }
+
+  /**
+   * @description Vérifie les permissions CRUD avant une requête.
+   * @param operation Type d'opération : 'READ', 'CREATE', 'UPDATE', 'DELETE'
+   * @throws SecurityException si l'utilisateur n'a pas les permissions
+   */
+  private static void checkCRUDPermissions(String operation) {
+    Schema.DescribeSObjectResult describeResult = Work_Item__c.SObjectType.getDescribe();
+
+    if (operation == 'READ' && !describeResult.isAccessible()) {
+      String errorMsg = 'Pas de permission READ sur Work_Item__c';
+      LOGGER.error('checkCRUDPermissions', errorMsg);
+      throw new SecurityException(errorMsg);
+    } else if (operation == 'CREATE' && !describeResult.isCreateable()) {
+      String errorMsg = 'Pas de permission CREATE sur Work_Item__c';
+      LOGGER.error('checkCRUDPermissions', errorMsg);
+      throw new SecurityException(errorMsg);
+    } else if (operation == 'UPDATE' && !describeResult.isUpdateable()) {
+      String errorMsg = 'Pas de permission UPDATE sur Work_Item__c';
+      LOGGER.error('checkCRUDPermissions', errorMsg);
+      throw new SecurityException(errorMsg);
+    } else if (operation == 'DELETE' && !describeResult.isDeletable()) {
+      String errorMsg = 'Pas de permission DELETE sur Work_Item__c';
+      LOGGER.error('checkCRUDPermissions', errorMsg);
+      throw new SecurityException(errorMsg);
+    }
+  }
+
+  /**
+   * @description Récupère un Work Item par son Id.
+   * @param workItemId Id du Work Item
+   * @return Work_Item__c ou null si non trouvé
    */
   public static Work_Item__c getById(Id workItemId) {
+    checkCRUDPermissions('READ');
+
     try {
-      // Valider la CRUD
-      if (!Work_Item__c.sObjectType.getDescribe(SObjectDescribeOptions.DEFERRED).isAccessible()) {
-        LOGGER.warn('getById', 'Pas d\'accès en lecture à Work_Item__c');
+      LOGGER.debug('getById', 'Recherche Work Item : ' + workItemId);
+
+      List<Work_Item__c> results = Database.query(
+        'SELECT ' + getAllFields() + ' ' +
+        'FROM Work_Item__c ' +
+        'WHERE Id = :workItemId ' +
+        'LIMIT 1'
+      );
+
+      if (results.isEmpty()) {
+        LOGGER.warn('getById', 'Work Item non trouvé : ' + workItemId);
         return null;
       }
 
-      // Exécuter la requête
-      List<Work_Item__c> results = [
-        SELECT
-          Id,
-          Name,
-          Status__c,
-          Description__c,
-          Due_Date__c
-        FROM Work_Item__c
-        WHERE Id = :workItemId
-        LIMIT 1
-      ];
-
-      return results.isEmpty() ? null : results[0];
+      LOGGER.debug('getById', 'Work Item trouvé : ' + results[0].Name);
+      return results[0];
     } catch (Exception e) {
-      LOGGER.error('getById', 'Échec de la requête pour l\'Id : ' + workItemId, e);
-      return null;
+      LOGGER.error('getById', 'Erreur lors de la récupération du Work Item', e);
+      throw e;
     }
   }
 
   /**
-   * @description Obtenir plusieurs éléments de travail par Ids.
-   * @param workItemIds Ensemble des Ids à interroger
-   * @return Liste des éléments de travail
+   * @description Récupère plusieurs Work Items par leurs Ids.
+   * @param workItemIds Set d'Ids des Work Items
+   * @return List<Work_Item__c>
    */
-  public static List<Work_Item__c> getByIds(List<Id> workItemIds) {
-    try {
-      if (!Work_Item__c.sObjectType.getDescribe(SObjectDescribeOptions.DEFERRED).isAccessible()) {
-        LOGGER.warn('getByIds', 'Pas d\'accès en lecture à Work_Item__c');
-        return new List<Work_Item__c>();
-      }
+  public static List<Work_Item__c> getByIds(Set<Id> workItemIds) {
+    checkCRUDPermissions('READ');
 
-      if (workItemIds == null || workItemIds.isEmpty()) {
-        return new List<Work_Item__c>();
-      }
-
-      return [
-        SELECT
-          Id,
-          Name,
-          Status__c,
-          Description__c,
-          Due_Date__c
-        FROM Work_Item__c
-        WHERE Id IN :workItemIds
-      ];
-    } catch (Exception e) {
-      LOGGER.error('getByIds', 'Échec de la requête', e);
+    if (workItemIds == null || workItemIds.isEmpty()) {
+      LOGGER.debug('getByIds', 'Set d\'Ids vide, retour liste vide');
       return new List<Work_Item__c>();
     }
-  }
 
-  /**
-   * @description Obtenir tous les éléments de travail triés par date de création.
-   * @return Liste des éléments de travail
-   */
-  public static List<Work_Item__c> getAll() {
     try {
-      if (!Work_Item__c.sObjectType.getDescribe(SObjectDescribeOptions.DEFERRED).isAccessible()) {
-        return new List<Work_Item__c>();
-      }
+      LOGGER.debug('getByIds', 'Recherche ' + workItemIds.size() + ' Work Items');
 
-      return [
-        SELECT Id, Name, Status__c, Description__c, Due_Date__c
-        FROM Work_Item__c
-        ORDER BY CreatedDate DESC
-      ];
+      List<Work_Item__c> results = Database.query(
+        'SELECT ' + getAllFields() + ' ' +
+        'FROM Work_Item__c ' +
+        'WHERE Id IN :workItemIds ' +
+        'ORDER BY Name'
+      );
+
+      LOGGER.info('getByIds', results.size() + ' Work Items trouvés sur ' + workItemIds.size() + ' recherchés');
+      return results;
     } catch (Exception e) {
-      LOGGER.error('getAll', 'Échec de la requête', e);
-      return new List<Work_Item__c>();
+      LOGGER.error('getByIds', 'Erreur lors de la récupération des Work Items', e);
+      throw e;
     }
   }
 
   /**
-   * @description Obtenir les éléments de travail par statut.
-   * @param status Valeur du statut (p. ex., 'In_Progress')
-   * @return Liste des éléments de travail
+   * @description Récupère les Work Items par statut.
+   * @param status Statut à rechercher
+   * @return List<Work_Item__c>
    */
   public static List<Work_Item__c> getByStatus(String status) {
-    try {
-      if (!Work_Item__c.sObjectType.getDescribe(SObjectDescribeOptions.DEFERRED).isAccessible()) {
-        return new List<Work_Item__c>();
-      }
+    checkCRUDPermissions('READ');
 
-      return [
-        SELECT Id, Name, Status__c, Description__c, Due_Date__c
-        FROM Work_Item__c
-        WHERE Status__c = :status
-      ];
-    } catch (Exception e) {
-      LOGGER.error('getByStatus', 'Échec de la requête pour le statut : ' + status, e);
+    if (String.isBlank(status)) {
+      LOGGER.debug('getByStatus', 'Statut vide, retour liste vide');
       return new List<Work_Item__c>();
     }
+
+    try {
+      LOGGER.debug('getByStatus', 'Recherche Work Items avec statut : ' + status);
+
+      List<Work_Item__c> results = Database.query(
+        'SELECT ' + getAllFields() + ' ' +
+        'FROM Work_Item__c ' +
+        'WHERE Status__c = :status ' +
+        'ORDER BY Due_Date__c ASC, Priority__c DESC'
+      );
+
+      LOGGER.info('getByStatus', results.size() + ' Work Items trouvés avec statut ' + status);
+      return results;
+    } catch (Exception e) {
+      LOGGER.error('getByStatus', 'Erreur lors de la récupération par statut', e);
+      throw e;
+    }
   }
 
   /**
-   * @description Obtenir les éléments de travail dont la date d'échéance est dans N jours.
-   * @param days Nombre de jours à partir d'aujourd'hui
-   * @return Liste des éléments de travail
+   * @description Récupère les Work Items par catégorie.
+   * @param category Catégorie à rechercher
+   * @return List<Work_Item__c>
    */
-  public static List<Work_Item__c> getDueWithinDays(Integer days) {
-    try {
-      if (!Work_Item__c.sObjectType.getDescribe(SObjectDescribeOptions.DEFERRED).isAccessible()) {
-        return new List<Work_Item__c>();
-      }
+  public static List<Work_Item__c> getByCategory(String category) {
+    checkCRUDPermissions('READ');
 
-      Date dueDate = System.today().addDays(days);
-
-      return [
-        SELECT Id, Name, Status__c, Due_Date__c
-        FROM Work_Item__c
-        WHERE Due_Date__c <= :dueDate AND Status__c != 'Done'
-        ORDER BY Due_Date__c ASC
-      ];
-    } catch (Exception e) {
-      LOGGER.error('getDueWithinDays', 'Échec de la requête pour les jours : ' + days, e);
+    if (String.isBlank(category)) {
+      LOGGER.debug('getByCategory', 'Catégorie vide, retour liste vide');
       return new List<Work_Item__c>();
     }
-  }
-
-  /**
-   * @description Obtenir les éléments de travail par Id externe (pour la synchronisation).
-   * @param externalIds Ensemble des Ids externes
-   * @return Map d'Id externe -> Élément de travail
-   */
-  public static Map<String, Work_Item__c> getByExternalId(Set<String> externalIds) {
-    Map<String, Work_Item__c> resultMap = new Map<String, Work_Item__c>();
 
     try {
-      if (!Work_Item__c.sObjectType.getDescribe(SObjectDescribeOptions.DEFERRED).isAccessible()) {
-        return resultMap;
-      }
+      LOGGER.debug('getByCategory', 'Recherche Work Items avec catégorie : ' + category);
 
-      if (externalIds == null || externalIds.isEmpty()) {
-        return resultMap;
-      }
+      List<Work_Item__c> results = Database.query(
+        'SELECT ' + getAllFields() + ' ' +
+        'FROM Work_Item__c ' +
+        'WHERE Category__c = :category ' +
+        'ORDER BY Due_Date__c ASC'
+      );
 
-      List<Work_Item__c> results = [
-        SELECT Id, Name, Status__c
-        FROM Work_Item__c
-        WHERE Id IN :externalIds
-      ];
-
-      for (Work_Item__c item : results) {
-        resultMap.put(item.Id, item);
-      }
-
-      return resultMap;
+      LOGGER.info('getByCategory', results.size() + ' Work Items trouvés avec catégorie ' + category);
+      return results;
     } catch (Exception e) {
-      LOGGER.error('getByExternalId', 'Échec de la requête', e);
-      return resultMap;
+      LOGGER.error('getByCategory', 'Erreur lors de la récupération par catégorie', e);
+      throw e;
     }
   }
 
   /**
-   * @description Compter les éléments de travail par statut.
-   * @return Map de statut -> nombre
+   * @description Récupère les Work Items en retard (Due_Date < today et Status != Done).
+   * @return List<Work_Item__c>
    */
-  public static Map<String, Integer> countByStatus() {
-    Map<String, Integer> resultMap = new Map<String, Integer>();
+  public static List<Work_Item__c> getOverdue() {
+    checkCRUDPermissions('READ');
 
     try {
-      if (!Work_Item__c.sObjectType.getDescribe(SObjectDescribeOptions.DEFERRED).isAccessible()) {
-        return resultMap;
-      }
+      Date today = System.today();
+      LOGGER.debug('getOverdue', 'Recherche Work Items en retard (avant ' + today + ')');
 
-      List<AggregateResult> results = [
-        SELECT Status__c, COUNT(Id) cnt
-        FROM Work_Item__c
-        GROUP BY Status__c
-      ];
+      List<Work_Item__c> results = Database.query(
+        'SELECT ' + getAllFields() + ' ' +
+        'FROM Work_Item__c ' +
+        'WHERE Due_Date__c < :today ' +
+        'AND Status__c != \'Done\' ' +
+        'ORDER BY Due_Date__c ASC'
+      );
 
-      for (AggregateResult ar : results) {
-        resultMap.put((String) ar.get('Status__c'), (Integer) ar.get('cnt'));
-      }
-
-      return resultMap;
+      LOGGER.info('getOverdue', results.size() + ' Work Items en retard trouvés');
+      return results;
     } catch (Exception e) {
-      LOGGER.error('countByStatus', 'Échec de la requête d\'agrégation', e);
-      return resultMap;
+      LOGGER.error('getOverdue', 'Erreur lors de la récupération des Work Items en retard', e);
+      throw e;
     }
+  }
+
+  /**
+   * @description Récupère un Work Item par son External_Id.
+   * @param externalId External Id à rechercher
+   * @return Work_Item__c ou null si non trouvé
+   */
+  public static Work_Item__c getByExternalId(String externalId) {
+    checkCRUDPermissions('READ');
+
+    if (String.isBlank(externalId)) {
+      LOGGER.debug('getByExternalId', 'External Id vide, retour null');
+      return null;
+    }
+
+    try {
+      LOGGER.debug('getByExternalId', 'Recherche Work Item avec External_Id : ' + externalId);
+
+      List<Work_Item__c> results = Database.query(
+        'SELECT ' + getAllFields() + ' ' +
+        'FROM Work_Item__c ' +
+        'WHERE External_Id__c = :externalId ' +
+        'LIMIT 1'
+      );
+
+      if (results.isEmpty()) {
+        LOGGER.warn('getByExternalId', 'Work Item non trouvé avec External_Id : ' + externalId);
+        return null;
+      }
+
+      LOGGER.debug('getByExternalId', 'Work Item trouvé : ' + results[0].Name);
+      return results[0];
+    } catch (Exception e) {
+      LOGGER.error('getByExternalId', 'Erreur lors de la récupération par External_Id', e);
+      throw e;
+    }
+  }
+
+  /**
+   * @description Récupère tous les Work Items actifs (Status != Done).
+   * @return List<Work_Item__c>
+   */
+  public static List<Work_Item__c> getAllActiveWorkItems() {
+    checkCRUDPermissions('READ');
+
+    try {
+      LOGGER.debug('getAllActiveWorkItems', 'Recherche tous les Work Items actifs');
+
+      List<Work_Item__c> results = Database.query(
+        'SELECT ' + getAllFields() + ' ' +
+        'FROM Work_Item__c ' +
+        'WHERE Status__c != \'Done\' ' +
+        'ORDER BY Priority__c DESC, Due_Date__c ASC'
+      );
+
+      LOGGER.info('getAllActiveWorkItems', results.size() + ' Work Items actifs trouvés');
+      return results;
+    } catch (Exception e) {
+      LOGGER.error('getAllActiveWorkItems', 'Erreur lors de la récupération des Work Items actifs', e);
+      throw e;
+    }
+  }
+
+  /**
+   * @description Récupère les Work Items créés après une certaine date.
+   * @param fromDate Date de début
+   * @return List<Work_Item__c>
+   */
+  public static List<Work_Item__c> getCreatedAfter(Date fromDate) {
+    checkCRUDPermissions('READ');
+
+    if (fromDate == null) {
+      LOGGER.debug('getCreatedAfter', 'Date nulle, retour liste vide');
+      return new List<Work_Item__c>();
+    }
+
+    try {
+      DateTime fromDateTime = DateTime.newInstance(fromDate.year(), fromDate.month(), fromDate.day());
+      LOGGER.debug('getCreatedAfter', 'Recherche Work Items créés après ' + fromDate);
+
+      List<Work_Item__c> results = Database.query(
+        'SELECT ' + getAllFields() + ' ' +
+        'FROM Work_Item__c ' +
+        'WHERE CreatedDate >= :fromDateTime ' +
+        'ORDER BY CreatedDate DESC'
+      );
+
+      LOGGER.info('getCreatedAfter', results.size() + ' Work Items trouvés créés après ' + fromDate);
+      return results;
+    } catch (Exception e) {
+      LOGGER.error('getCreatedAfter', 'Erreur lors de la récupération par date de création', e);
+      throw e;
+    }
+  }
+
+  /**
+   * @description Exception personnalisée pour les erreurs de sécurité.
+   */
+  public class SecurityException extends Exception {
   }
 }
