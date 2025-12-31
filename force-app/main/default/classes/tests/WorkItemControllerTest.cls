@@ -1,113 +1,217 @@
 /**
- * @description Tests unitaires pour la logique REST/API WorkItemController.
- * Couverture de test :
- * - Obtenir un seul élément de travail
- * - Obtenir la liste des éléments de travail avec filtres
- * - Créer un élément de travail à partir d'une requête
- * - Mettre à jour un élément de travail à partir d'une requête
- * - Supprimer un élément de travail
- * - Formatage des réponses d'erreur
- * - Validation des permissions
- * - Validation des entrées
- * 
  * @author Hamza Amari
- * @version 1.0
+ * @date 31/12/2025
+ * @description Tests pour WorkItemController.
+ * Couvre @AuraEnabled methods, AuraHandledException wrapping, cacheable.
  */
-@isTest
+@IsTest
 private class WorkItemControllerTest {
+  
   /**
-   * @description Tester que getWorkItem retourne les données formatées.
+   * @description Setup pour chaque test.
    */
-  @isTest
-  static void testGetWorkItemReturnsFormatted() {
-    // TODO : Implémenter le test
+  @TestSetup
+  static void setupTestData() {
+    // Mock FeatureFlags pour activer l'automation
+    Logging_Settings__mdt mockSettings = new Logging_Settings__mdt(
+      Enable_Logging__c = true,
+      Persist_Logs__c = false,
+      Disable_Automation__c = false
+    );
+    FeatureFlags.hasInitialized = false;
+    FeatureFlags.cachedSettings = mockSettings;
+    FeatureFlags.hasInitialized = true;
   }
-
+  
   /**
-   * @description Tester que getWorkItem gère un ID inexistant.
+   * @description Test 1 : getItems retourne Work Items filtrés.
    */
-  @isTest
-  static void testGetWorkItemHandlesNotFound() {
-    // TODO : Implémenter le test
+  @IsTest
+  static void testGetItemsReturnsFilteredItems() {
+    // Arrange
+    List<Work_Item__c> items = new List<Work_Item__c>();
+    items.add(TestDataFactory.createWorkItem('Item 1', 'New', 'High', System.today().addDays(5)));
+    items.add(TestDataFactory.createWorkItem('Item 2', 'In_Progress', 'Medium', System.today().addDays(10)));
+    items.add(TestDataFactory.createWorkItem('Item 3', 'New', 'Low', System.today().addDays(15)));
+    insert items;
+    
+    // Act
+    Test.startTest();
+    List<Work_Item__c> results = WorkItemController.getItems('New', null, 50);
+    Test.stopTest();
+    
+    // Assert
+    Assert.areEqual(2, results.size(), 'Devrait retourner 2 Work Items New');
   }
-
+  
   /**
-   * @description Tester que getWorkItemsList applique les filtres correctement.
+   * @description Test 2 : getItems recherche par texte.
    */
-  @isTest
-  static void testGetWorkItemsListAppliesFilters() {
-    // TODO : Implémenter le test
+  @IsTest
+  static void testGetItemsSearchesByText() {
+    // Arrange
+    List<Work_Item__c> items = new List<Work_Item__c>();
+    items.add(TestDataFactory.createWorkItem('SEARCHABLE Item 1', 'New', 'Medium', System.today().addDays(5)));
+    items.add(TestDataFactory.createWorkItem('Other Item', 'New', 'Medium', System.today().addDays(5)));
+    insert items;
+    
+    // Act
+    Test.startTest();
+    List<Work_Item__c> results = WorkItemController.getItems(null, 'SEARCHABLE', 50);
+    Test.stopTest();
+    
+    // Assert
+    Assert.areEqual(1, results.size(), 'Devrait trouver 1 Work Item SEARCHABLE');
+    Assert.isTrue(results[0].Name.contains('SEARCHABLE'), 'Nom devrait contenir SEARCHABLE');
   }
-
+  
   /**
-   * @description Tester que getWorkItemsList respecte le paramètre de limite.
+   * @description Test 3 : saveItem INSERT crée un Work Item.
    */
-  @isTest
-  static void testGetWorkItemsListRespectsLimit() {
-    // TODO : Implémenter le test
+  @IsTest
+  static void testSaveItemInsert() {
+    // Arrange
+    Work_Item__c item = new Work_Item__c(
+      Name = 'Test Insert',
+      Description__c = 'Test description',
+      Due_Date__c = System.today().addDays(7)
+    );
+    
+    // Act
+    Test.startTest();
+    Work_Item__c saved = WorkItemController.saveItem(item);
+    Test.stopTest();
+    
+    // Assert
+    Assert.isNotNull(saved.Id, 'Id devrait être rempli');
+    Assert.areEqual('New', saved.Status__c, 'Status devrait être New (défaut)');
+    Assert.areEqual('Medium', saved.Priority__c, 'Priority devrait être Medium (défaut)');
   }
-
+  
   /**
-   * @description Tester que createWorkItem valide l'entrée.
+   * @description Test 4 : saveItem UPDATE met à jour Work Item.
    */
-  @isTest
-  static void testCreateWorkItemValidatesInput() {
-    // TODO : Implémenter le test
+  @IsTest
+  static void testSaveItemUpdate() {
+    // Arrange
+    Work_Item__c item = TestDataFactory.createAndInsertWorkItem('Test Update');
+    item.Priority__c = 'High';
+    item.Description__c = 'Updated description';
+    
+    // Act
+    Test.startTest();
+    Work_Item__c saved = WorkItemController.saveItem(item);
+    Test.stopTest();
+    
+    // Assert
+    Assert.areEqual('High', saved.Priority__c, 'Priority devrait être High');
+    Assert.areEqual('Updated description', saved.Description__c, 'Description mise à jour');
   }
-
+  
   /**
-   * @description Tester que createWorkItem retourne une erreur pour les données invalides.
+   * @description Test 5 : saveItem avec null lève AuraHandledException.
    */
-  @isTest
-  static void testCreateWorkItemReturnsErrorInvalid() {
-    // TODO : Implémenter le test
+  @IsTest
+  static void testSaveItemWithNullThrowsAuraHandledException() {
+    // Act & Assert
+    try {
+      Test.startTest();
+      WorkItemController.saveItem(null);
+      Test.stopTest();
+      Assert.fail('Une AuraHandledException devrait être levée pour Work Item null');
+    } catch (AuraHandledException e) {
+      Assert.isNotNull(e.getMessage(), 'Message ne devrait pas être null');
+    }
   }
-
+  
   /**
-   * @description Tester que updateWorkItem valide les permissions.
+   * @description Test 6 : markDone marque Work Item comme Done.
    */
-  @isTest
-  static void testUpdateWorkItemValidatesPermissions() {
-    // TODO : Implémenter le test
+  @IsTest
+  static void testMarkDoneSetsStatusDone() {
+    // Arrange
+    Work_Item__c item = TestDataFactory.createAndInsertWorkItem('Test Done');
+    
+    // Act
+    Test.startTest();
+    Work_Item__c result = WorkItemController.markDone(item.Id);
+    Test.stopTest();
+    
+    // Assert
+    Assert.areEqual('Done', result.Status__c, 'Status devrait être Done');
+    Assert.isNotNull(result.Completed_On__c, 'Completed_On devrait être rempli par Trigger');
   }
-
+  
   /**
-   * @description Tester que updateWorkItem applique les modifications correctement.
+   * @description Test 7 : markDone avec null Id lève AuraHandledException.
    */
-  @isTest
-  static void testUpdateWorkItemAppliesChanges() {
-    // TODO : Implémenter le test
+  @IsTest
+  static void testMarkDoneWithNullIdThrowsAuraHandledException() {
+    // Act & Assert
+    try {
+      Test.startTest();
+      WorkItemController.markDone(null);
+      Test.stopTest();
+      Assert.fail('Une AuraHandledException devrait être levée pour Id null');
+    } catch (AuraHandledException e) {
+      Assert.isNotNull(e.getMessage(), 'Message ne devrait pas être null');
+    }
   }
-
+  
   /**
-   * @description Test deleteWorkItem removes record.
+   * @description Test 8 : markDone avec Id inexistant lève AuraHandledException.
    */
-  @isTest
-  static void testDeleteWorkItemRemovesRecord() {
-    // TODO: Implement test
+  @IsTest
+  static void testMarkDoneWithNonExistentIdThrowsAuraHandledException() {
+    // Arrange
+    Id fakeId = '001000000000000AAA';
+    
+    // Act & Assert
+    try {
+      Test.startTest();
+      WorkItemController.markDone(fakeId);
+      Test.stopTest();
+      Assert.fail('Une AuraHandledException devrait être levée pour Id inexistant');
+    } catch (AuraHandledException e) {
+      Assert.isNotNull(e.getMessage(), 'Message ne devrait pas être null');
+    }
   }
-
+  
   /**
-   * @description Test error response includes status code.
+   * @description Test 9 : getById retourne Work Item complet.
    */
-  @isTest
-  static void testErrorResponseIncludesStatusCode() {
-    // TODO: Implement test
+  @IsTest
+  static void testGetByIdReturnsCompleteItem() {
+    // Arrange
+    Work_Item__c item = TestDataFactory.createAndInsertWorkItem('Test GetById');
+    
+    // Act
+    Test.startTest();
+    Work_Item__c result = WorkItemController.getById(item.Id);
+    Test.stopTest();
+    
+    // Assert
+    Assert.isNotNull(result, 'Work Item devrait être retourné');
+    Assert.areEqual(item.Id, result.Id, 'Id devrait correspondre');
+    Assert.areEqual('Test GetById', result.Name, 'Name devrait correspondre');
   }
-
+  
   /**
-   * @description Test error response includes message.
+   * @description Test 10 : getById avec Id inexistant lève AuraHandledException.
    */
-  @isTest
-  static void testErrorResponseIncludesMessage() {
-    // TODO: Implement test
-  }
-
-  /**
-   * @description Test controller enforces security context.
-   */
-  @isTest
-  static void testEnforceSecurityContext() {
-    // TODO: Implement test
+  @IsTest
+  static void testGetByIdWithNonExistentIdThrowsAuraHandledException() {
+    // Arrange
+    Id fakeId = '001000000000000AAA';
+    
+    // Act & Assert
+    try {
+      Test.startTest();
+      WorkItemController.getById(fakeId);
+      Test.stopTest();
+      Assert.fail('Une AuraHandledException devrait être levée pour Id inexistant');
+    } catch (AuraHandledException e) {
+      Assert.isNotNull(e.getMessage(), 'Message ne devrait pas être null');
+    }
   }
 }
