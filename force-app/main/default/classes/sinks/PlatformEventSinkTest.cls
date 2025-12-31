@@ -91,7 +91,7 @@ private class PlatformEventSinkTest {
       .setSource('ComplexService', 'complexMethod')
       .addCustomData('recordId', '001xx000003DHfAAM')
       .addCustomData('operation', 'UPDATE')
-      .addCustomData('retries', 3);
+      .addCustomData('retries', '3');
 
     LogEntry entry = new LogEntry('INFO', 'Complex operation', context);
 

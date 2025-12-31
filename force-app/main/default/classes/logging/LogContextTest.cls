@@ -26,24 +26,26 @@ private class LogContextTest {
     LogContext context = new LogContext();
     String requestId = context.getRequestId();
 
-    // Assert - Request ID should have format: XXXXX-XXXXXXXX-XXXXX
-    Assert.isTrue(requestId.contains('-'), 'Request ID should contain hyphens');
+    // Assert - Request ID should have format from Request.getCurrent().getRequestId()
+    // Example: SLB:447c84f09f9145930a3fdb1a7b7028b0 (contains colon, not hyphens)
+    Assert.isTrue(requestId.contains(':'), 'Request ID should contain colon (format: prefix:uuid)');
     Assert.isTrue(requestId.length() > 10, 'Request ID should be reasonably long');
   }
 
   @IsTest
   static void testRequestIdUniqueness() {
-    // Act - Create multiple contexts
+    // Act - Create multiple contexts in same transaction
     LogContext context1 = new LogContext();
     LogContext context2 = new LogContext();
     String id1 = context1.getRequestId();
     String id2 = context2.getRequestId();
 
-    // Assert - IDs should be different (high probability)
-    // Note: Could theoretically be same in microseconds, but very unlikely
-    Assert.isTrue(
-      !id1.equals(id2),
-      'Request IDs should generally be unique'
+    // Assert - IDs should be the same (same transaction = same requestId)
+    // Request.getCurrent().getRequestId() returns same ID for entire transaction
+    Assert.areEqual(
+      id1,
+      id2,
+      'Request IDs should be the same within a transaction'
     );
   }
 
@@ -69,14 +71,14 @@ private class LogContextTest {
     // Act
     LogContext result = context
       .addCustomData('key1', 'value1')
-      .addCustomData('key2', 123)
-      .addCustomData('key3', true);
+      .addCustomData('key2', '123')
+      .addCustomData('key3', 'true');
 
     // Assert
-    Map<String, Object> customData = context.getCustomData();
+    Map<String, String> customData = context.getCustomData();
     Assert.areEqual('value1', customData.get('key1'));
-    Assert.areEqual(123, customData.get('key2'));
-    Assert.areEqual(true, customData.get('key3'));
+    Assert.areEqual('123', customData.get('key2'));
+    Assert.areEqual('true', customData.get('key3'));
     Assert.areEqual(context, result, 'addCustomData should return this');
   }
 

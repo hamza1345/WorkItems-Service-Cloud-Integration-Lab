@@ -45,20 +45,22 @@ public class LogContext {
     return this.instanceMethodName != null ? this.instanceMethodName : '';
   }
   
-  public void setSource(String className, String methodName) {
+  public LogContext setSource(String className, String methodName) {
     this.instanceClassName = className;
     this.instanceMethodName = methodName;
+    return this;
   }
   
   public Map<String, String> getCustomData() {
     return this.instanceCustomData != null ? this.instanceCustomData : new Map<String, String>();
   }
   
-  public void addCustomData(String key, String value) {
+  public LogContext addCustomData(String key, String value) {
     if (this.instanceCustomData == null) {
       this.instanceCustomData = new Map<String, String>();
     }
     this.instanceCustomData.put(key, value);
+    return this;
   }
   
   public String getRequestId() {
