@@ -1,145 +1,42 @@
 /**
  * @author Hamza Amari
- * @date 24/12/2025
- * @description Gestionnaire pour les événements du déclencheur WorkItemTrigger.
- * Responsabilités :
- * - Acheminer les événements du déclencheur vers les méthodes de service appropriées
- * - Assurer les opérations bulkifiées (pas de SOQL dans les boucles)
- * - Gérer le flux des transactions et la gestion des erreurs
- * - Prévenir les exécutions récursives du déclencheur par contexte
- *
- * Événements du déclencheur gérés :
- * - beforeInsert : Validation, remplissage des champs
- * - afterInsert : Création des enregistrements associés, publication d'événements
- * - beforeUpdate : Validation, mise à jour des champs
- * - afterUpdate : Mise à jour des enregistrements associés, notifications
- * - beforeDelete : Validation de suppression
- * - afterDelete : Nettoyage, piste d'audit
- *
- * Stratégie anti-récursion :
- * - Suivi par contexte (before/after, insert/update/delete)
- * - Prévient les boucles infinies des mises à jour auto-déclenchées
- * - Utilise Set<Id> pour tracer les éléments de travail traités dans chaque contexte
+ * @date 31/12/2025
+ * @description Gestionnaire de trigger pour Work_Item__c.
+ * Centralise toute la logique métier des triggers avec logging et gestion d'erreurs.
+ * Respecte le principe de séparation des préoccupations (SoC).
  */
 public with sharing class WorkItemTriggerHandler {
-  private static final Logger LOGGER = LoggerFactory.getLogger('WorkItemTriggerHandler');
-
-  // ========================================
-  // CONTRÔLES ANTI-RÉCURSION
-  // ========================================
-  // Trace les IDs traités par contexte de déclencheur pour prévenir la récursion.
-  // Chaque contexte (beforeInsert, afterInsert, etc.) a son propre Set
-  // pour permettre un contrôle indépendant du même enregistrement dans les différentes phases.
+  private static final Logger LOGGER = LoggerFactory.getLogger(
+    'WorkItemTriggerHandler'
+  );
 
   /**
-   * @description IDs des éléments de travail traités dans le contexte beforeInsert.
-   * Prévient le re-traitement des mêmes enregistrements si handleBeforeInsert est appelé plusieurs fois.
+   * @description Vérifie si l'automation doit être bypassée.
+   * Vérifie les Custom Permissions et Feature Flags.
+   * @return true si l'automation est désactivée
    */
-  private static Set<Id> processedBeforeInsertIds = new Set<Id>();
-
-  /**
-   * @description IDs des éléments de travail traités dans le contexte afterInsert.
-   * Prévient le re-traitement des mêmes enregistrements si handleAfterInsert est appelé plusieurs fois.
-   */
-  private static Set<Id> processedAfterInsertIds = new Set<Id>();
-
-  /**
-   * @description IDs des éléments de travail traités dans le contexte beforeUpdate.
-   * Prévient le re-traitement des mêmes enregistrements si handleBeforeUpdate est appelé plusieurs fois.
-   */
-  private static Set<Id> processedBeforeUpdateIds = new Set<Id>();
-
-  /**
-   * @description IDs des éléments de travail traités dans le contexte afterUpdate.
-   * Prévient le re-traitement des mêmes enregistrements si handleAfterUpdate est appelé plusieurs fois.
-   */
-  private static Set<Id> processedAfterUpdateIds = new Set<Id>();
-
-  /**
-   * @description IDs des éléments de travail traités dans le contexte beforeDelete.
-   * Prévient le re-traitement des mêmes enregistrements si handleBeforeDelete est appelé plusieurs fois.
-   */
-  private static Set<Id> processedBeforeDeleteIds = new Set<Id>();
-
-  /**
-   * @description IDs des éléments de travail traités dans le contexte afterDelete.
-   * Prévient le re-traitement des mêmes enregistrements si handleAfterDelete est appelé plusieurs fois.
-   */
-  private static Set<Id> processedAfterDeleteIds = new Set<Id>();
-
-  // ========================================
-  // MÉTHODES D'AIDE ANTI-RÉCURSION
-  // ========================================
-
-  /**
-   * @description Vérifier si un enregistrement a déjà été traité dans le contexte actuel.
-   * @param recordId ID à vérifier
-   * @param processedIds Ensemble des IDs déjà traités pour ce contexte
-   * @return true si l'enregistrement a déjà été traité (ignorer), false si nouveau
-   */
-  private static Boolean isAlreadyProcessed(Id recordId, Set<Id> processedIds) {
-    return processedIds.contains(recordId);
-  }
-
-  /**
-   * @description Marquer un enregistrement comme traité dans le contexte actuel.
-   * @param recordId ID à marquer comme traité
-   * @param processedIds Ensemble auquel ajouter l'ID
-   */
-  private static void markAsProcessed(Id recordId, Set<Id> processedIds) {
-    processedIds.add(recordId);
-  }
-
-  /**
-   * @description Marquer plusieurs enregistrements comme traités dans le contexte actuel.
-   * @param recordIds IDs à marquer comme traités
-   * @param processedIds Ensemble auquel ajouter les IDs
-   */
-  private static void markMultipleAsProcessed(List<Id> recordIds, Set<Id> processedIds) {
-    processedIds.addAll(recordIds);
-  }
-
-  /**
-   * @description Effacer les enregistrements traités pour le contexte actuel (rarement nécessaire, mais disponible).
-   * À utiliser avec prudence - généralement réinitialisé par transaction.
-   * @param processedIds Ensemble à effacer
-   */
-  private static void clearProcessed(Set<Id> processedIds) {
-    processedIds.clear();
-  }
-
-
-
-
-  // ========================================
-  // CONTRÔLES DE BYPASS D'AUTOMATION
-  // ========================================
-
-  /**
-   * @description Vérifier si l'automation doit être contournée pour l'utilisateur actuel.
-   * Teste les custom permissions dans l'ordre de priorité :
-   * 1. Bypass_All_Automation (désactive TOUS les déclencheurs)
-   * 2. Bypass_WorkItem_Automation (désactive SEULEMENT les déclencheurs WorkItem)
-   * @return true si le bypass est activé, false sinon
-   */
-  private static Boolean shouldBypassAutomation() {
-    // Vérifier permission globale en premier (priorité élevée)
-    if (FeatureManagement.checkPermission('Bypass_All_Automation')) {
-      LOGGER.warn(
-        'shouldBypassAutomation',
-        'Automation bypassed (Global) for user: ' + UserInfo.getUserName() + 
-        ' | Profile: ' + UserInfo.getProfileId()
+  private static Boolean shouldBypass() {
+    // Vérifier Custom Permission globale
+    if (FeatureFlag.hasPermission('Bypass_All_Automation')) {
+      LOGGER.debug(
+        'shouldBypass',
+        'Bypass ALL automation via Custom Permission'
       );
       return true;
     }
 
-    // Vérifier permission spécifique WorkItem
-    if (FeatureManagement.checkPermission('Bypass_WorkItem_Automation')) {
-      LOGGER.warn(
-        'shouldBypassAutomation',
-        'Automation bypassed (WorkItem) for user: ' + UserInfo.getUserName() + 
-        ' | Profile: ' + UserInfo.getProfileId()
+    // Vérifier Custom Permission spécifique WorkItem
+    if (FeatureFlag.hasPermission('Bypass_Work_Item_Automation')) {
+      LOGGER.debug(
+        'shouldBypass',
+        'Bypass WorkItem automation via Custom Permission'
       );
+      return true;
+    }
+
+    // Vérifier Feature Flag
+    if (FeatureFlags.disableAutomation()) {
+      LOGGER.debug('shouldBypass', 'Bypass automation via Feature Flag');
       return true;
     }
 
@@ -147,109 +44,63 @@ public with sharing class WorkItemTriggerHandler {
   }
 
   /**
-   * @description Gérer les événements avant insertion.
-   * @param newRecords Enregistrements en cours d'insertion
-   *
-   * Anti-Récursion : Trace les IDs traités dans le contexte beforeInsert.
-   * Si le même enregistrement est traité deux fois dans beforeInsert,
-   * le deuxième appel sera ignoré.
+   * @description Gère l'événement beforeInsert.
+   * Applique les valeurs par défaut et valide les enregistrements.
+   * @param newRecords Liste des nouveaux enregistrements
    */
   public static void handleBeforeInsert(List<Work_Item__c> newRecords) {
+    if (shouldBypass()) {
+      LOGGER.info(
+        'handleBeforeInsert',
+        'Automation bypassée pour ' + newRecords.size() + ' enregistrements'
+      );
+      return;
+    }
+
     try {
-      // ✅ VÉRIFIER LE BYPASS GLOBAL EN PREMIER
-      if (shouldBypassAutomation()) {
-        return;
-      }
+      LOGGER.info(
+        'handleBeforeInsert',
+        'Début du traitement de ' + newRecords.size() + ' enregistrements'
+      );
 
-      LOGGER.info('handleBeforeInsert', 'Traitement de ' + newRecords.size() + ' enregistrements');
-
-      // Filtrer les enregistrements déjà traités pour prévenir la récursion
-      List<Work_Item__c> recordsToProcess = new List<Work_Item__c>();
-      for (Work_Item__c record : newRecords) {
-        if (!isAlreadyProcessed(record.Id, processedBeforeInsertIds)) {
-          recordsToProcess.add(record);
-          markAsProcessed(record.Id, processedBeforeInsertIds);
-        }
-      }
-
-      if (recordsToProcess.isEmpty()) {
-        LOGGER.debug('handleBeforeInsert', 'Tous les enregistrements ont déjà été traités dans ce contexte, ignorant');
-        return;
-      }
-
+      // Appliquer les valeurs par défaut
+      WorkItemDomain.populateDefaults(newRecords);
       LOGGER.debug(
         'handleBeforeInsert',
-        'Traitement de ' + recordsToProcess.size() + ' nouveaux enregistrements (filtrés sur ' + newRecords.size() + ')'
+        'Valeurs par défaut appliquées à ' + newRecords.size() + ' enregistrements'
       );
 
-      // Appliquer les règles métier du domaine
-      WorkItemDomain.populateDefaults(recordsToProcess);
-      List<String> validationErrors = WorkItemDomain.validate(recordsToProcess);
-      
-      if (!validationErrors.isEmpty()) {
-        LOGGER.error('handleBeforeInsert', 'Erreurs de validation : ' + String.join(validationErrors, '; '));
-        throw new WorkItemBusinessException('Erreurs de validation du Work_Item : ' + String.join(validationErrors, '; '));
+      // Valider les enregistrements
+      List<String> errors = WorkItemDomain.validate(newRecords);
+      if (!errors.isEmpty()) {
+        String errorMessage = String.join(errors, '; ');
+        LOGGER.warn('handleBeforeInsert', 'Erreurs de validation : ' + errorMessage);
+
+        // Ajouter l'erreur au premier enregistrement
+        newRecords[0].addError(errorMessage);
       }
+
+      LOGGER.info(
+        'handleBeforeInsert',
+        'Traitement terminé avec succès pour ' + newRecords.size() + ' enregistrements'
+      );
     } catch (Exception e) {
-      LOGGER.error('handleBeforeInsert', 'Erreur pendant l\'insertion', e);
+      LOGGER.error(
+        'handleBeforeInsert',
+        'Erreur pendant le traitement beforeInsert',
+        e
+      );
       throw e;
     }
   }
 
   /**
-   * @description Gérer les événements après insertion.
-   * @param newRecords Enregistrements en cours d'insertion
-   *
-   * Anti-Récursion : Trace les IDs traités dans le contexte afterInsert.
-   * Si la logique dans ce gestionnaire met à jour des éléments de travail, l'appel du déclencheur récursif
-   * sera bloqué en vérifiant processedAfterInsertIds.
-   */
-  public static void handleAfterInsert(List<Work_Item__c> newRecords) {
-    try {
-      // ✅ VÉRIFIER LE BYPASS GLOBAL EN PREMIER
-      if (shouldBypassAutomation()) {
-        return;
-      }
-
-      LOGGER.info('handleAfterInsert', 'Traitement de ' + newRecords.size() + ' enregistrements');
-
-      // Filtrer les enregistrements déjà traités pour prévenir la récursion
-      List<Work_Item__c> recordsToProcess = new List<Work_Item__c>();
-      for (Work_Item__c record : newRecords) {
-        if (!isAlreadyProcessed(record.Id, processedAfterInsertIds)) {
-          recordsToProcess.add(record);
-          markAsProcessed(record.Id, processedAfterInsertIds);
-        }
-      }
-
-      if (recordsToProcess.isEmpty()) {
-        LOGGER.debug('handleAfterInsert', 'Tous les enregistrements ont déjà été traités dans ce contexte, ignorant');
-        return;
-      }
-
-      LOGGER.debug(
-        'handleAfterInsert',
-        'Traitement de ' + recordsToProcess.size() + ' nouveaux enregistrements (filtrés sur ' + newRecords.size() + ')'
-      );
-
-      // Appliquer les règles métier du domaine après insertion
-      WorkItemDomain.applyBusinessRules(recordsToProcess, null);
-    } catch (Exception e) {
-      LOGGER.error('handleAfterInsert', 'Erreur après insertion', e);
-      throw e;
-    }
-  }
-
-  /**
-   * @description Gérer les événements avant mise à jour.
-   * @param newRecords Enregistrements en cours de mise à jour
-   * @param oldRecords Valeurs précédentes des enregistrements
-   * @param newMap Carte des nouveaux enregistrements (Id -> Enregistrement)
-   * @param oldMap Carte des anciens enregistrements (Id -> Enregistrement)
-   *
-   * Anti-Récursion : Trace les IDs traités dans le contexte beforeUpdate.
-   * Si le même enregistrement est mis à jour plusieurs fois dans la même transaction,
-   * seule la première mise à jour via beforeUpdate sera traitée.
+   * @description Gère l'événement beforeUpdate.
+   * Valide les enregistrements et applique les règles métier.
+   * @param newRecords Liste des nouveaux enregistrements
+   * @param oldRecords Liste des anciens enregistrements
+   * @param newMap Map des nouveaux enregistrements par Id
+   * @param oldMap Map des anciens enregistrements par Id
    */
   public static void handleBeforeUpdate(
     List<Work_Item__c> newRecords,
@@ -257,57 +108,161 @@ public with sharing class WorkItemTriggerHandler {
     Map<Id, Work_Item__c> newMap,
     Map<Id, Work_Item__c> oldMap
   ) {
-    try {
-      // ✅ VÉRIFIER LE BYPASS GLOBAL EN PREMIER
-      if (shouldBypassAutomation()) {
-        return;
-      }
-
-      LOGGER.info('handleBeforeUpdate', 'Traitement de ' + newRecords.size() + ' enregistrements');
-
-      // Filtrer les enregistrements déjà traités pour prévenir la récursion
-      List<Work_Item__c> recordsToProcess = new List<Work_Item__c>();
-      for (Work_Item__c record : newRecords) {
-        if (!isAlreadyProcessed(record.Id, processedBeforeUpdateIds)) {
-          recordsToProcess.add(record);
-          markAsProcessed(record.Id, processedBeforeUpdateIds);
-        }
-      }
-
-      if (recordsToProcess.isEmpty()) {
-        LOGGER.debug('handleBeforeUpdate', 'Tous les enregistrements ont déjà été traités dans ce contexte, ignorant');
-        return;
-      }
-
-      LOGGER.debug(
+    if (shouldBypass()) {
+      LOGGER.info(
         'handleBeforeUpdate',
-        'Traitement de ' + recordsToProcess.size() + ' nouveaux enregistrements (filtrés sur ' + newRecords.size() + ')'
+        'Automation bypassée pour ' + newRecords.size() + ' enregistrements'
+      );
+      return;
+    }
+
+    try {
+      LOGGER.info(
+        'handleBeforeUpdate',
+        'Début du traitement de ' + newRecords.size() + ' enregistrements'
       );
 
-      // Appliquer les règles métier du domaine et valider
-      List<String> validationErrors = WorkItemDomain.validate(recordsToProcess);
-      
-      if (!validationErrors.isEmpty()) {
-        LOGGER.error('handleBeforeUpdate', 'Erreurs de validation : ' + String.join(validationErrors, '; '));
-        throw new WorkItemBusinessException('Erreurs de validation du Work_Item : ' + String.join(validationErrors, '; '));
+      // Valider les enregistrements
+      List<String> errors = WorkItemDomain.validate(newRecords);
+      if (!errors.isEmpty()) {
+        String errorMessage = String.join(errors, '; ');
+        LOGGER.warn('handleBeforeUpdate', 'Erreurs de validation : ' + errorMessage);
+
+        // Ajouter l'erreur au premier enregistrement
+        newRecords[0].addError(errorMessage);
       }
+
+      // Appliquer les règles métier (ex: remplir Completed_On si Done)
+      WorkItemDomain.applyBusinessRules(newRecords, oldMap);
+      LOGGER.debug(
+        'handleBeforeUpdate',
+        'Règles métier appliquées à ' + newRecords.size() + ' enregistrements'
+      );
+
+      LOGGER.info(
+        'handleBeforeUpdate',
+        'Traitement terminé avec succès pour ' + newRecords.size() + ' enregistrements'
+      );
     } catch (Exception e) {
-      LOGGER.error('handleBeforeUpdate', 'Erreur avant mise à jour', e);
+      LOGGER.error(
+        'handleBeforeUpdate',
+        'Erreur pendant le traitement beforeUpdate',
+        e
+      );
       throw e;
     }
   }
 
   /**
-   * @description Gérer les événements après mise à jour.
-   * @param newRecords Enregistrements en cours de mise à jour
-   * @param oldRecords Valeurs précédentes des enregistrements
-   * @param newMap Carte des nouveaux enregistrements (Id -> Enregistrement)
-   * @param oldMap Carte des anciens enregistrements (Id -> Enregistrement)
-   *
-   * Anti-Récursion : Trace les IDs traités dans le contexte afterUpdate.
-   * Si ce gestionnaire publie des événements ou met à jour des enregistrements associés,
-   * qui déclenche ensuite une autre mise à jour, cet ID d'enregistrement se trouvera dans
-   * processedAfterUpdateIds et sera ignoré lors de la rentrée.
+   * @description Gère l'événement beforeDelete.
+   * Empêche la suppression des Work Items avec statut "Done".
+   * @param oldRecords Liste des enregistrements à supprimer
+   * @param oldMap Map des enregistrements à supprimer par Id
+   */
+  public static void handleBeforeDelete(
+    List<Work_Item__c> oldRecords,
+    Map<Id, Work_Item__c> oldMap
+  ) {
+    if (shouldBypass()) {
+      LOGGER.info(
+        'handleBeforeDelete',
+        'Automation bypassée pour ' + oldRecords.size() + ' enregistrements'
+      );
+      return;
+    }
+
+    try {
+      LOGGER.info(
+        'handleBeforeDelete',
+        'Début du traitement de ' + oldRecords.size() + ' enregistrements'
+      );
+
+      // Empêcher la suppression des Work Items terminés
+      for (Work_Item__c oldRecord : oldRecords) {
+        if (oldRecord.Status__c == 'Done') {
+          String errorMessage =
+            'Impossible de supprimer un élément de travail terminé. ' +
+            'Veuillez d\'abord changer le statut.';
+          LOGGER.warn(
+            'handleBeforeDelete',
+            'Tentative de suppression d\'un Work Item Done : ' + oldRecord.Id
+          );
+          oldRecord.addError(errorMessage);
+        }
+      }
+
+      LOGGER.info(
+        'handleBeforeDelete',
+        'Traitement terminé avec succès pour ' + oldRecords.size() + ' enregistrements'
+      );
+    } catch (Exception e) {
+      LOGGER.error(
+        'handleBeforeDelete',
+        'Erreur pendant le traitement beforeDelete',
+        e
+      );
+      throw e;
+    }
+  }
+
+  /**
+   * @description Gère l'événement afterInsert.
+   * Peut être utilisé pour des actions asynchrones ou notifications.
+   * @param newRecords Liste des nouveaux enregistrements
+   * @param newMap Map des nouveaux enregistrements par Id
+   */
+  public static void handleAfterInsert(
+    List<Work_Item__c> newRecords,
+    Map<Id, Work_Item__c> newMap
+  ) {
+    if (shouldBypass()) {
+      LOGGER.info(
+        'handleAfterInsert',
+        'Automation bypassée pour ' + newRecords.size() + ' enregistrements'
+      );
+      return;
+    }
+
+    try {
+      LOGGER.info(
+        'handleAfterInsert',
+        'Début du traitement de ' + newRecords.size() + ' enregistrements'
+      );
+
+      // Logique future : notifications, intégrations, etc.
+      // Pour l'instant, juste du logging
+      for (Work_Item__c record : newRecords) {
+        LOGGER.debug(
+          'handleAfterInsert',
+          'Work Item créé : ' +
+          record.Name +
+          ' avec statut ' +
+          record.Status__c
+        );
+      }
+
+      LOGGER.info(
+        'handleAfterInsert',
+        'Traitement terminé avec succès pour ' + newRecords.size() + ' enregistrements'
+      );
+    } catch (Exception e) {
+      LOGGER.error(
+        'handleAfterInsert',
+        'Erreur pendant le traitement afterInsert',
+        e
+      );
+      // Ne pas re-throw pour éviter de bloquer l'insertion
+      // Les erreurs sont loguées
+    }
+  }
+
+  /**
+   * @description Gère l'événement afterUpdate.
+   * Peut être utilisé pour des actions asynchrones ou notifications.
+   * @param newRecords Liste des nouveaux enregistrements
+   * @param oldRecords Liste des anciens enregistrements
+   * @param newMap Map des nouveaux enregistrements par Id
+   * @param oldMap Map des anciens enregistrements par Id
    */
   public static void handleAfterUpdate(
     List<Work_Item__c> newRecords,
@@ -315,123 +270,140 @@ public with sharing class WorkItemTriggerHandler {
     Map<Id, Work_Item__c> newMap,
     Map<Id, Work_Item__c> oldMap
   ) {
-    try {
-      // ✅ VÉRIFIER LE BYPASS GLOBAL EN PREMIER
-      if (shouldBypassAutomation()) {
-        return;
-      }
-
-      LOGGER.info('handleAfterUpdate', 'Traitement de ' + newRecords.size() + ' enregistrements');
-
-      // Filtrer les enregistrements déjà traités pour prévenir la récursion
-      List<Work_Item__c> recordsToProcess = new List<Work_Item__c>();
-      for (Work_Item__c record : newRecords) {
-        if (!isAlreadyProcessed(record.Id, processedAfterUpdateIds)) {
-          recordsToProcess.add(record);
-          markAsProcessed(record.Id, processedAfterUpdateIds);
-        }
-      }
-
-      if (recordsToProcess.isEmpty()) {
-        LOGGER.debug('handleAfterUpdate', 'Tous les enregistrements ont déjà été traités dans ce contexte, ignorant');
-        return;
-      }
-
-      LOGGER.debug(
+    if (shouldBypass()) {
+      LOGGER.info(
         'handleAfterUpdate',
-        'Traitement de ' + recordsToProcess.size() + ' nouveaux enregistrements (filtrés sur ' + newRecords.size() + ')'
+        'Automation bypassée pour ' + newRecords.size() + ' enregistrements'
+      );
+      return;
+    }
+
+    try {
+      LOGGER.info(
+        'handleAfterUpdate',
+        'Début du traitement de ' + newRecords.size() + ' enregistrements'
       );
 
-      // Appliquer les règles métier du domaine après mise à jour (exemple: remplir Completed_On)
-      WorkItemDomain.applyBusinessRules(recordsToProcess, oldMap);
+      // Détecter les changements de statut
+      for (Work_Item__c newRecord : newRecords) {
+        Work_Item__c oldRecord = oldMap.get(newRecord.Id);
+        if (newRecord.Status__c != oldRecord.Status__c) {
+          LOGGER.info(
+            'handleAfterUpdate',
+            'Changement de statut pour ' +
+            newRecord.Name +
+            ' : ' +
+            oldRecord.Status__c +
+            ' → ' +
+            newRecord.Status__c
+          );
+        }
+      }
+
+      LOGGER.info(
+        'handleAfterUpdate',
+        'Traitement terminé avec succès pour ' + newRecords.size() + ' enregistrements'
+      );
     } catch (Exception e) {
-      LOGGER.error('handleAfterUpdate', 'Erreur après mise à jour', e);
-      throw e;
+      LOGGER.error(
+        'handleAfterUpdate',
+        'Erreur pendant le traitement afterUpdate',
+        e
+      );
+      // Ne pas re-throw pour éviter de bloquer la mise à jour
     }
   }
 
   /**
-   * @description Gérer les événements avant suppression.
-   * @param oldRecords Enregistrements en cours de suppression
-   *
-   * Anti-Récursion : Trace les IDs traités dans le contexte beforeDelete.
-   * Prévient le re-traitement de la même suppression si elle est déclenchée à nouveau.
+   * @description Gère l'événement afterDelete.
+   * Peut être utilisé pour du nettoyage ou des notifications.
+   * @param oldRecords Liste des enregistrements supprimés
+   * @param oldMap Map des enregistrements supprimés par Id
    */
-  public static void handleBeforeDelete(List<Work_Item__c> oldRecords) {
-    try {
-      // ✅ VÉRIFIER LE BYPASS GLOBAL EN PREMIER
-      if (shouldBypassAutomation()) {
-        return;
-      }
-
-      LOGGER.info('handleBeforeDelete', 'Traitement de ' + oldRecords.size() + ' enregistrements');
-
-      // Filtrer les enregistrements déjà traités pour prévenir la récursion
-      List<Work_Item__c> recordsToProcess = new List<Work_Item__c>();
-      for (Work_Item__c record : oldRecords) {
-        if (!isAlreadyProcessed(record.Id, processedBeforeDeleteIds)) {
-          recordsToProcess.add(record);
-          markAsProcessed(record.Id, processedBeforeDeleteIds);
-        }
-      }
-
-      if (recordsToProcess.isEmpty()) {
-        LOGGER.debug('handleBeforeDelete', 'Tous les enregistrements ont déjà été traités dans ce contexte, ignorant');
-        return;
-      }
-
-      LOGGER.debug(
-        'handleBeforeDelete',
-        'Traitement de ' + recordsToProcess.size() + ' nouveaux enregistrements (filtrés sur ' + oldRecords.size() + ')'
-      );
-
-      // TODO : Implémenter la logique avant suppression en utilisant recordsToProcess
-    } catch (Exception e) {
-      LOGGER.error('handleBeforeDelete', 'Erreur avant suppression', e);
-      throw e;
-    }
-  }
-
-  /**
-   * @description Gérer les événements après suppression.
-   * @param oldRecords Enregistrements qui ont été supprimés
-   *
-   * Anti-Récursion : Trace les IDs traités dans le contexte afterDelete.
-   * Prévient le re-traitement si les suppressions associées ou les mises à jour déclenchent le même gestionnaire.
-   */
-  public static void handleAfterDelete(List<Work_Item__c> oldRecords) {
-    try {
-      // ✅ VÉRIFIER LE BYPASS GLOBAL EN PREMIER
-      if (shouldBypassAutomation()) {
-        return;
-      }
-
-      LOGGER.info('handleAfterDelete', 'Traitement de ' + oldRecords.size() + ' enregistrements');
-
-      // Filtrer les enregistrements déjà traités pour prévenir la récursion
-      List<Work_Item__c> recordsToProcess = new List<Work_Item__c>();
-      for (Work_Item__c record : oldRecords) {
-        if (!isAlreadyProcessed(record.Id, processedAfterDeleteIds)) {
-          recordsToProcess.add(record);
-          markAsProcessed(record.Id, processedAfterDeleteIds);
-        }
-      }
-
-      if (recordsToProcess.isEmpty()) {
-        LOGGER.debug('handleAfterDelete', 'Tous les enregistrements ont déjà été traités dans ce contexte, ignorant');
-        return;
-      }
-
-      LOGGER.debug(
+  public static void handleAfterDelete(
+    List<Work_Item__c> oldRecords,
+    Map<Id, Work_Item__c> oldMap
+  ) {
+    if (shouldBypass()) {
+      LOGGER.info(
         'handleAfterDelete',
-        'Traitement de ' + recordsToProcess.size() + ' nouveaux enregistrements (filtrés sur ' + oldRecords.size() + ')'
+        'Automation bypassée pour ' + oldRecords.size() + ' enregistrements'
+      );
+      return;
+    }
+
+    try {
+      LOGGER.info(
+        'handleAfterDelete',
+        'Début du traitement de ' + oldRecords.size() + ' enregistrements'
       );
 
-      // TODO : Implémenter la logique après suppression en utilisant recordsToProcess
-      // Exemple : Nettoyage, enregistrement d'audit, suppressions en cascade, etc.
+      // Logique future : nettoyage, notifications, etc.
+      for (Work_Item__c record : oldRecords) {
+        LOGGER.info('handleAfterDelete', 'Work Item supprimé : ' + record.Name);
+      }
+
+      LOGGER.info(
+        'handleAfterDelete',
+        'Traitement terminé avec succès pour ' + oldRecords.size() + ' enregistrements'
+      );
     } catch (Exception e) {
-      LOGGER.error('handleAfterDelete', 'Erreur après suppression', e);
-      throw e;
+      LOGGER.error(
+        'handleAfterDelete',
+        'Erreur pendant le traitement afterDelete',
+        e
+      );
+      // Ne pas re-throw
+    }
+  }
+
+  /**
+   * @description Gère l'événement afterUndelete.
+   * Peut être utilisé pour restaurer des données liées.
+   * @param restoredRecords Liste des enregistrements restaurés
+   * @param restoredMap Map des enregistrements restaurés par Id
+   */
+  public static void handleAfterUndelete(
+    List<Work_Item__c> restoredRecords,
+    Map<Id, Work_Item__c> restoredMap
+  ) {
+    if (shouldBypass()) {
+      LOGGER.info(
+        'handleAfterUndelete',
+        'Automation bypassée pour ' + restoredRecords.size() + ' enregistrements'
+      );
+      return;
+    }
+
+    try {
+      LOGGER.info(
+        'handleAfterUndelete',
+        'Début du traitement de ' +
+        restoredRecords.size() +
+        ' enregistrements'
+      );
+
+      // Logique future : restauration de données liées
+      for (Work_Item__c record : restoredRecords) {
+        LOGGER.info(
+          'handleAfterUndelete',
+          'Work Item restauré : ' + record.Name
+        );
+      }
+
+      LOGGER.info(
+        'handleAfterUndelete',
+        'Traitement terminé avec succès pour ' +
+        restoredRecords.size() +
+        ' enregistrements'
+      );
+    } catch (Exception e) {
+      LOGGER.error(
+        'handleAfterUndelete',
+        'Erreur pendant le traitement afterUndelete',
+        e
+      );
+      // Ne pas re-throw
     }
   }
 }

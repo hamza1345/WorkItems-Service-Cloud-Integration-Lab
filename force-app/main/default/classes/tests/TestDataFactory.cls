@@ -1,121 +1,180 @@
 /**
  * @author Hamza Amari
- * @date 24/12/2025
- * @description Fabrique de données de test pour créer des enregistrements de test.
- * Responsabilités :
- * - Fournir des méthodes de constructeur pour la création d'enregistrements de test
- * - Implémenter des données de test cohérentes sur toutes les classes de test
- * - Prendre en charge l'API fluide pour l'installation flexible des données de test
- * - Gérer les valeurs par défaut pour les champs obligatoires
- * - Isoler la génération de données de test de la logique de test
- *
- * Cette classe implémente le motif Builder pour une installation de test claire.
- * Toutes les méthodes sont publiques et statiques pour une utilisation facile dans les classes de test.
+ * @date 31/12/2025
+ * @description Factory pour créer des données de test pour Work_Item__c.
+ * Centralise la création de test data pour maintenir la cohérence entre tests.
  */
-@isTest
+@IsTest
 public class TestDataFactory {
   /**
-   * @description Créer un élément de travail de test avec des valeurs par défaut.
-   * @return Enregistrement Work_Item__c prêt pour l'insertion
+   * @description Crée un Work_Item__c avec valeurs par défaut pour tests.
+   * @param name Le nom de l'élément (unique)
+   * @return Work_Item__c non-inséré
    */
-  public static Work_Item__c createTestWorkItem() {
-    // TODO : Implémenter la création par défaut d'un élément de travail
-    return new Work_Item__c();
+  public static Work_Item__c createWorkItem(String name) {
+    return new Work_Item__c(
+      Name = name,
+      Status__c = 'New',
+      Priority__c = 'Medium',
+      Description__c = 'Test description for ' + name,
+      Due_Date__c = System.today().addDays(7),
+      Category__c = 'Development'
+    );
   }
 
   /**
-   * @description Créer plusieurs éléments de travail de test.
-   * @param count Nombre d'éléments à créer
-   * @return Liste des enregistrements Work_Item__c prêts pour l'insertion
+   * @description Crée un Work_Item__c avec des paramètres personnalisés.
+   * @param name Le nom de l'élément
+   * @param status Le statut (New, In_Progress, Done, etc.)
+   * @param priority La priorité (Low, Medium, High, Critical)
+   * @param dueDate La date d'échéance
+   * @return Work_Item__c non-inséré
    */
-  public static List<Work_Item__c> createTestWorkItems(Integer count) {
-    List<Work_Item__c> items = new List<Work_Item__c>();
-    // TODO : Implémenter la création en masse
-    return items;
+  public static Work_Item__c createWorkItem(
+    String name,
+    String status,
+    String priority,
+    Date dueDate
+  ) {
+    return new Work_Item__c(
+      Name = name,
+      Status__c = status,
+      Priority__c = priority,
+      Description__c = 'Test description for ' + name,
+      Due_Date__c = dueDate,
+      Category__c = 'Development'
+    );
   }
 
   /**
-   * @description Créer un élément de travail avec des valeurs de champ spécifiques.
-   * @param fields Map du nom du champ -> valeur
-   * @return Enregistrement Work_Item__c avec les valeurs spécifiées
+   * @description Crée un Work_Item__c avec tous les champs remplis.
+   * @param name Le nom de l'élément
+   * @param status Le statut
+   * @param priority La priorité
+   * @param dueDate La date d'échéance
+   * @param category La catégorie
+   * @param externalId L'identifiant externe
+   * @return Work_Item__c non-inséré
    */
-  public static Work_Item__c createTestWorkItem(Map<String, Object> fields) {
-    Work_Item__c item = createTestWorkItem();
-    // TODO : Appliquer les remplacements de champs
+  public static Work_Item__c createWorkItemFull(
+    String name,
+    String status,
+    String priority,
+    Date dueDate,
+    String category,
+    String externalId
+  ) {
+    Work_Item__c item = new Work_Item__c(
+      Name = name,
+      Status__c = status,
+      Priority__c = priority,
+      Description__c = 'Test description for ' + name,
+      Due_Date__c = dueDate,
+      Category__c = category,
+      External_Id__c = externalId
+    );
+
+    // Si statut est Done, remplir Completed_On
+    if (status == 'Done') {
+      item.Completed_On__c = System.now();
+    }
+
     return item;
   }
 
   /**
-   * @description Créer un élément de travail avec un statut spécifique.
-   * @param status Valeur du statut
-   * @return Enregistrement Work_Item__c avec le statut spécifié
+   * @description Crée et insère un Work_Item__c avec valeurs par défaut.
+   * @param name Le nom de l'élément
+   * @return Work_Item__c inséré avec Id
    */
-  public static Work_Item__c createTestWorkItemWithStatus(String status) {
-    // TODO : Implémenter la création spécifique au statut
-    return new Work_Item__c();
+  public static Work_Item__c createAndInsertWorkItem(String name) {
+    Work_Item__c item = createWorkItem(name);
+    insert item;
+    return item;
   }
 
   /**
-   * @description Créer un élément de travail avec un Account associé.
-   * @return Work_Item__c avec Account__c rempli
+   * @description Crée et insère plusieurs Work_Items en masse.
+   * @param count Le nombre d'éléments à créer
+   * @param namePrefix Le préfixe pour les noms
+   * @return List<Work_Item__c> La liste des éléments insérés
    */
-  public static Work_Item__c createTestWorkItemWithAccount() {
-    // TODO : Implémenter avec relation Account
-    return new Work_Item__c();
+  public static List<Work_Item__c> createAndInsertWorkItems(
+    Integer count,
+    String namePrefix
+  ) {
+    List<Work_Item__c> items = new List<Work_Item__c>();
+    for (Integer i = 0; i < count; i++) {
+      items.add(createWorkItem(namePrefix + ' ' + i));
+    }
+    insert items;
+    return items;
   }
 
   /**
-   * @description Créer un élément de travail avec un Contact associé.
-   * @return Work_Item__c avec Contact__c rempli
+   * @description Crée un Work_Item__c sans valeurs par défaut (pour tester le trigger).
+   * @param name Le nom de l'élément
+   * @return Work_Item__c sans Status ni Priority
    */
-  public static Work_Item__c createTestWorkItemWithContact() {
-    // TODO : Implémenter avec relation Contact
-    return new Work_Item__c();
+  public static Work_Item__c createWorkItemMinimal(String name) {
+    return new Work_Item__c(
+      Name = name,
+      Description__c = 'Minimal test item',
+      Due_Date__c = System.today().addDays(7)
+    );
   }
 
   /**
-   * @description Créer un élément de travail avec un Case associé.
-   * @return Work_Item__c avec Case__c rempli
+   * @description Crée un Work_Item__c avec une date d'échéance passée.
+   * @param name Le nom de l'élément
+   * @return Work_Item__c avec Due_Date dans le passé
    */
-  public static Work_Item__c createTestWorkItemWithCase() {
-    // TODO : Implémenter avec relation Case
-    return new Work_Item__c();
+  public static Work_Item__c createWorkItemOverdue(String name) {
+    return new Work_Item__c(
+      Name = name,
+      Status__c = 'In_Progress',
+      Priority__c = 'High',
+      Description__c = 'Overdue test item',
+      Due_Date__c = System.today().addDays(-5),
+      Category__c = 'Bug_Fix'
+    );
   }
 
   /**
-   * @description Insérer les éléments de travail de test et retourner avec les Ids remplis.
-   * @param workItems Liste à insérer
-   * @return Liste avec Ids remplis
+   * @description Crée un Work_Item__c avec External_Id pour tests d'intégration.
+   * @param name Le nom de l'élément
+   * @param externalId L'identifiant externe
+   * @return Work_Item__c avec External_Id
    */
-  public static List<Work_Item__c> insertWorkItems(List<Work_Item__c> workItems) {
-    // TODO : Implémenter l'insertion avec gestion des erreurs
-    return workItems;
+  public static Work_Item__c createWorkItemWithExternalId(
+    String name,
+    String externalId
+  ) {
+    return new Work_Item__c(
+      Name = name,
+      Status__c = 'New',
+      Priority__c = 'Medium',
+      Description__c = 'Test item with external ID',
+      Due_Date__c = System.today().addDays(7),
+      External_Id__c = externalId,
+      Category__c = 'Integration'
+    );
   }
 
   /**
-   * @description Créer un Account de test pour les relations.
-   * @return Enregistrement Account prêt pour l'insertion
+   * @description Crée un Work_Item__c dans l'état "Done".
+   * @param name Le nom de l'élément
+   * @return Work_Item__c avec Status Done et Completed_On rempli
    */
-  public static Account createTestAccount() {
-    // TODO : Implémenter la création d'Account de test
-    return new Account();
-  }
-
-  /**
-   * @description Créer un Contact de test pour les relations.
-   * @return Enregistrement Contact prêt pour l'insertion
-   */
-  public static Contact createTestContact() {
-    // TODO : Implémenter la création de Contact de test
-    return new Contact();
-  }
-
-  /**
-   * @description Créer un Case de test pour les relations.
-   * @return Enregistrement Case prêt pour l'insertion
-   */
-  public static Case createTestCase() {
-    // TODO : Implémenter la création de Case de test
-    return new Case();
+  public static Work_Item__c createCompletedWorkItem(String name) {
+    return new Work_Item__c(
+      Name = name,
+      Status__c = 'Done',
+      Priority__c = 'Medium',
+      Description__c = 'Completed test item',
+      Due_Date__c = System.today().addDays(-2),
+      Completed_On__c = System.now().addDays(-1),
+      Category__c = 'Development'
+    );
   }
 }
