@@ -9,7 +9,7 @@
  * - Facilite parsing côté JS (reduceErrors)
  * 
  * Usage:
- * UiError err = new UiError('SAVE_FAILED', 'Impossible de sauvegarder', LogContext.getCorrelationId());
+ * UiError err = new UiError('SAVE_FAILED', 'Impossible de sauvegarder', generateCorrelationId());
  * throw new AuraHandledException(err.toMessage());
  */
 public class UiError {
@@ -57,6 +57,25 @@ public class UiError {
    * @return UiError avec correlationId généré
    */
   public static UiError create(String code, String message) {
-    return new UiError(code, message, LogContext.getCorrelationId());
+    return new UiError(code, message, generateCorrelationId());
+  }
+  
+  /**
+   * @description Génère un ID court (8 caractères) basé sur Request ID ou UUID.
+   * Format: "xxxx-xxxx"
+   * 
+   * @return String Short correlation ID
+   */
+  private static String generateCorrelationId() {
+    String requestId = Request.getCurrent().getRequestId();
+    if (String.isNotBlank(requestId)) {
+      // Utilise les 8 derniers caractères du Request ID
+      return requestId.right(9); // Format: "xxxx-xxxx"
+    }
+    
+    // Fallback: génère un UUID court
+    String uuid = String.valueOf(Crypto.getRandomLong());
+    String hex = EncodingUtil.convertToHex(Crypto.generateDigest('MD5', Blob.valueOf(uuid)));
+    return hex.substring(0, 4) + '-' + hex.substring(4, 8);
   }
 }

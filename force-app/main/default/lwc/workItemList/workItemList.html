@@ -41,10 +41,12 @@
             <!-- Error Message -->
             <template if:true={workItems.error}>
                 <div class="slds-m-top_small">
-                    <c-error-panel
-                        error={workItems.error}
-                        friendly-message="Unable to load work items"
-                    ></c-error-panel>
+                    <div class="slds-notify slds-notify_alert slds-alert_error" role="alert">
+                        <span class="slds-assistive-text">Error</span>
+                        <h2>
+                            {workItems.error.body.message}
+                        </h2>
+                    </div>
                 </div>
             </template>
 

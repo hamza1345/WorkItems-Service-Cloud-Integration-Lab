@@ -60,10 +60,10 @@ public without sharing class FeatureFlags {
         Id,
         DeveloperName,
         Enable_Logging__c,
-        Min_Level__c,
+        Min_Log_Level__c,
         Persist_Logs__c,
-        Enable_Perf_Logs__c,
-        Disable_WorkItem_Automation__c,
+        Performance_Logs__c,
+        Disable_Automation__c,
         Disable_External_Sync__c
       FROM Logging_Settings__mdt
       WHERE DeveloperName = :DEFAULT_RECORD
@@ -83,10 +83,10 @@ public without sharing class FeatureFlags {
     Logging_Settings__mdt defaults = new Logging_Settings__mdt();
     defaults.DeveloperName = DEFAULT_RECORD;
     defaults.Enable_Logging__c = true;
-    defaults.Min_Level__c = 'INFO';
+    defaults.Min_Log_Level__c = 'DEBUG';
     defaults.Persist_Logs__c = false;
-    defaults.Enable_Perf_Logs__c = false;
-    defaults.Disable_WorkItem_Automation__c = false;
+    defaults.Performance_Logs__c = false;
+    defaults.Disable_Automation__c = false;
     defaults.Disable_External_Sync__c = false;
     return defaults;
   }
@@ -106,13 +106,13 @@ public without sharing class FeatureFlags {
   /**
    * @description Get the minimum logging level configured.
    * Possible values: NONE, DEBUG, INFO, WARN, ERROR, FATAL.
-   * Defaults to INFO if not configured.
+   * Defaults to DEBUG if not configured.
    * @return The minimum log level as a string
    */
   public static String minLevel() {
     ensureInitialized();
-    String level = cachedSettings.Min_Level__c;
-    return String.isBlank(level) ? 'INFO' : level;
+    String level = cachedSettings.Min_Log_Level__c;
+    return String.isBlank(level) ? 'DEBUG' : level;
   }
 
   /**
@@ -134,8 +134,8 @@ public without sharing class FeatureFlags {
    */
   public static Boolean perfLogs() {
     ensureInitialized();
-    return cachedSettings.Enable_Perf_Logs__c != null
-      ? cachedSettings.Enable_Perf_Logs__c
+    return cachedSettings.Performance_Logs__c != null
+      ? cachedSettings.Performance_Logs__c
       : false;
   }
 
@@ -146,8 +146,8 @@ public without sharing class FeatureFlags {
    */
   public static Boolean disableAutomation() {
     ensureInitialized();
-    return cachedSettings.Disable_WorkItem_Automation__c != null
-      ? cachedSettings.Disable_WorkItem_Automation__c
+    return cachedSettings.Disable_Automation__c != null
+      ? cachedSettings.Disable_Automation__c
       : false;
   }
 

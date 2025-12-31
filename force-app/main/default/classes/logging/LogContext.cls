@@ -8,13 +8,82 @@
  * - Utilisé pour tracer les logs d'une même transaction
  * - Exposé dans UiError pour debugging côté UI
  * 
- * Usage:
+ * Usage moderne (static):
  * String corrId = LogContext.getCorrelationId();
- * Logger.info('MyClass', 'Operation completed').tag('correlationId', corrId);
+ * 
+ * Usage legacy (instance - pour old Logger.cls):
+ * LogContext ctx = new LogContext();
+ * ctx.setSource('MyClass', 'myMethod');
  */
 public class LogContext {
   
   private static String correlationId;
+  
+  // Instance fields for legacy Logger compatibility
+  private String instanceClassName;
+  private String instanceMethodName;
+  private Map<String, String> instanceCustomData;
+  private Long instanceStartTime;
+  
+  /**
+   * @description Constructor for legacy Logger compatibility.
+   */
+  public LogContext() {
+    this.instanceClassName = '';
+    this.instanceMethodName = '';
+    this.instanceCustomData = new Map<String, String>();
+    this.instanceStartTime = System.currentTimeMillis();
+  }
+  
+  // ======== INSTANCE METHODS FOR LEGACY LOGGER.CLS COMPATIBILITY ========
+  
+  public String getClassName() {
+    return this.instanceClassName != null ? this.instanceClassName : '';
+  }
+  
+  public String getMethodName() {
+    return this.instanceMethodName != null ? this.instanceMethodName : '';
+  }
+  
+  public void setSource(String className, String methodName) {
+    this.instanceClassName = className;
+    this.instanceMethodName = methodName;
+  }
+  
+  public Map<String, String> getCustomData() {
+    return this.instanceCustomData != null ? this.instanceCustomData : new Map<String, String>();
+  }
+  
+  public void addCustomData(String key, String value) {
+    if (this.instanceCustomData == null) {
+      this.instanceCustomData = new Map<String, String>();
+    }
+    this.instanceCustomData.put(key, value);
+  }
+  
+  public String getRequestId() {
+    return Request.getCurrent().getRequestId();
+  }
+  
+  public String getUserId() {
+    return UserInfo.getUserId();
+  }
+  
+  public String getOrgId() {
+    return UserInfo.getOrganizationId();
+  }
+  
+  public Long getStartTime() {
+    return this.instanceStartTime;
+  }
+  
+  public Long getElapsedTime() {
+    return System.currentTimeMillis() - this.instanceStartTime;
+  }
+  
+  // ======== END INSTANCE METHODS ========
+  
+  // ======== STATIC METHODS FOR NEW CODE (ControllerLogger, UiError) ========
   
   /**
    * @description Récupère ou génère le correlationId pour la transaction courante.
@@ -37,50 +106,7 @@ public class LogContext {
     correlationId = null;
   }
   
-  // ======== STUBS FOR BACKWARDS COMPATIBILITY WITH OLD LOGGER FRAMEWORK ========
-  // Ces méthodes sont appelées par Logger.cls existant mais ne sont pas utilisées
-  // par ControllerLogger. Retournent valeurs par défaut pour éviter erreurs compilation.
-  
-  public static String getRequestId() {
-    return Request.getCurrent().getRequestId();
-  }
-  
-  public static String getUserId() {
-    return UserInfo.getUserId();
-  }
-  
-  public static String getOrgId() {
-    return UserInfo.getOrganizationId();
-  }
-  
-  public static String getClassName() {
-    return '';
-  }
-  
-  public static String getMethodName() {
-    return '';
-  }
-  
-  public static Map<String, String> getCustomData() {
-    return new Map<String, String>();
-  }
-  
-  public static void setSource(String className, String methodName) {
-    // No-op stub
-  }
-  
-  public static void addCustomData(String key, String value) {
-    // No-op stub
-  }
-  
-  public static Long getStartTime() {
-    return System.currentTimeMillis();
-  }
-  
-  public static Long getElapsedTime() {
-    return 0;
-  }
-  // ======== END STUBS ========
+  // ======== END STATIC METHODS ========
   
   /**
    * @description Génère un ID court (8 caractères) basé sur Request ID ou UUID.

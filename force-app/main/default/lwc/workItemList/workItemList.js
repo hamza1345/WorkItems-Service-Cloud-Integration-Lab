@@ -1,4 +1,4 @@
-import { LightningElement, wire } from 'lwc';
+import { LightningElement, wire, api } from 'lwc';
 import { refreshApex } from '@salesforce/apex';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 import getItems from '@salesforce/apex/WorkItemController.getItems';
@@ -35,12 +35,14 @@ export default class WorkItemList extends LightningElement {
     statusOptions = STATUS_OPTIONS;
     selectedStatus = '';
     searchTerm = '';
+    
+    @api limitSize = 50; // Configurable via App Builder
 
     // Wire service - cacheable method with auto-refresh
     @wire(getItems, { 
         status: '$selectedStatus', 
         searchTerm: '$searchTerm', 
-        limitSize: 50 
+        limitSize: '$limitSize'
     })
     workItems;
 
