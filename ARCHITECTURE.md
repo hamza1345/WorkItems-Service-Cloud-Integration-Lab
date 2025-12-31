@@ -1,603 +1,814 @@
-# 📐 Architecture - WorkItems Service Cloud Integration Lab
+# WorkItems Service Cloud Integration - Architecture
 
-## 🎯 Vue d'Ensemble
+## Vue d'ensemble
 
-Ce projet implémente une solution complète de gestion des éléments de travail (Work Items) avec persistance asynchrone des logs pour l'observabilité en production.
-
-**Stack technique** :
-- Salesforce Apex 65.0
-- Clean Architecture (Trigger → Service → Domain → Selector)
-- Platform Events pour la communication asynchrone
-- Feature Flags pour la contrôlabilité
-- Custom Metadata pour la configuration
+Système de gestion de Work Items suivant une architecture en couches stricte avec séparation des responsabilités. L'implémentation suit les patterns Domain-Driven Design (DDD) et les bonnes pratiques Salesforce.
 
 ---
 
-## 🏗️ Architecture Générale
+## Architecture en couches
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    PRESENTATION LAYER                        │
-│          (REST API - WorkItemController)                     │
-└──────────────────────┬──────────────────────────────────────┘
-                       ↓
-┌─────────────────────────────────────────────────────────────┐
-│                   APPLICATION LAYER                          │
-│  - WorkItemTriggerHandler (Orchestration)                    │
-│  - WorkItemService (CRUD + Business logic)                   │
-└──────────────────────┬──────────────────────────────────────┘
-                       ↓
-┌─────────────────────────────────────────────────────────────┐
-│                    DOMAIN LAYER                              │
-│  - WorkItemDomain (Règles métier pures)                     │
-│  - WorkItemSelector (SOQL queries)                          │
-│  - Pas de dépendances externes                              │
-└──────────────────────┬──────────────────────────────────────┘
-                       ↓
-┌─────────────────────────────────────────────────────────────┐
-│                 INFRASTRUCTURE LAYER                         │
-│  - Triggers (WorkItemTrigger)                               │
-│  - Custom Objects (Work_Item__c, App_Log__c)                │
-│  - Platform Events (App_Log__e)                             │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────┐
+│         UI Layer (LWC/Aura)             │
+│  - workItemList, workItemForm           │
+└────────────────┬────────────────────────┘
+                 │
+┌────────────────▼────────────────────────┐
+│      Controller Layer                   │
+│  - WorkItemController (@AuraEnabled)    │
+│  - UiError (error model)                │
+│  - Validation + Exception handling      │
+└────────────────┬────────────────────────┘
+                 │
+┌────────────────▼────────────────────────┐
+│      Service Layer                      │
+│  - WorkItemService (orchestration)      │
+│  - Business logic coordination          │
+└────────────────┬────────────────────────┘
+                 │
+┌────────────────▼────────────────────────┐
+│      Domain Layer                       │
+│  - WorkItemDomain (business rules)      │
+│  - Validations métier                   │
+└────────────────┬────────────────────────┘
+                 │
+┌────────────────▼────────────────────────┐
+│      Data Access Layer                  │
+│  - WorkItemSelector (SOQL)              │
+│  - WorkItemTriggerHandler               │
+└─────────────────────────────────────────┘
 ```
 
 ---
 
-## 📦 Composants Principaux
+## Controller Layer - WorkItemController
 
-### 1. **Trigger Layer** (WorkItemTriggerHandler)
+### Responsabilités
 
-**Responsabilité** : Acheminer les événements vers les services métier
+Le Controller est le **point d'entrée unique** pour les composants UI (LWC/Aura). Il assure:
+
+1. **Validation des inputs** - Vérification des paramètres utilisateur
+2. **Transformation des exceptions** - Conversion en `AuraHandledException` avec messages user-friendly
+3. **Gestion du cache** - Application correcte de `cacheable=true/false`
+4. **Isolation UI/Service** - Les composants UI ne connaissent pas les services
+
+### Méthodes @AuraEnabled
+
+#### 1. getItems() - READ avec cache
 
 ```apex
-WorkItemTrigger (Déclencheur)
-    ↓
-WorkItemTriggerHandler (Routeur)
-    ├─ beforeInsert() → Validation + Defaults
-    ├─ afterInsert() → Effets secondaires
-    ├─ beforeUpdate() → Validation
-    ├─ afterUpdate() → Effets secondaires
-    ├─ beforeDelete() → Validation suppression
-    └─ afterDelete() → Nettoyage
+@AuraEnabled(cacheable=true)
+public static List<Work_Item__c> getItems(String status, String searchTerm, Integer limitSize)
 ```
 
-**Caractéristiques** :
-- ✅ Anti-recursion via Set<Id> tracking
-- ✅ Global automation bypass via Custom Permissions
-- ✅ Bulkifié (pas de SOQL dans les boucles)
-- ✅ Gestion des erreurs propre
+**Caractéristiques:**
+- ✅ `cacheable=true` - Données read-only, optimisé pour wire service LWC
+- ✅ Validation: `limitSize` entre 1 et MAX_LIMIT (500)
+- ✅ Defaults: `limitSize` = 50 si null
+- ✅ Exception handling: BusinessException → AuraHandledException
 
-**Feature** : `shouldBypassAutomation()`
+**Règles cacheable:**
+- Méthode read-only (SELECT uniquement)
+- Pas de DML (INSERT/UPDATE/DELETE)
+- Pas d'appels @future, Queueable, Batch
+- Paramètres primitifs ou sérialisables uniquement
+
+**Usage LWC (wire):**
+```javascript
+@wire(getItems, { status: '$selectedStatus', searchTerm: '$searchTerm', limitSize: 100 })
+wiredItems;
+```
+
+#### 2. saveItem() - MUTATION sans cache
+
 ```apex
-if (shouldBypassAutomation()) {
-  return; // Skip tous les handlers
+@AuraEnabled
+public static Work_Item__c saveItem(Work_Item__c item)
+```
+
+**Caractéristiques:**
+- ❌ `cacheable=false` (défaut) - Méthode mutation (INSERT/UPDATE)
+- ✅ Validation: `item != null`
+- ✅ Exception handling: 
+  - Validation failure → `AuraHandledException` avec message explicite
+  - BusinessException → Code métier + message
+  - Generic Exception → Message technique
+
+**Règles non-cacheable:**
+- Contient DML (INSERT/UPDATE)
+- Modifie l'état du système
+- Résultat peut varier entre appels
+
+**Usage LWC (imperative):**
+```javascript
+saveItem({ item: this.workItem })
+    .then(result => { /* success */ })
+    .catch(error => { /* handle */ });
+```
+
+#### 3. markDone() - MUTATION sans cache
+
+```apex
+@AuraEnabled
+public static void markDone(Id itemId)
+```
+
+**Caractéristiques:**
+- ❌ `cacheable=false` - UPDATE operation
+- ✅ Validation: `itemId != null`
+- ✅ Business rules: Vérifie overdue via WorkItemService
+- ⚠️ **void return** - Pas de données retournées (optimisation)
+
+**Usage LWC (imperative):**
+```javascript
+markDone({ itemId: record.Id })
+    .then(() => { refreshApex(this.wiredItems); })
+    .catch(error => { /* handle */ });
+```
+
+#### 4. getById() - READ avec cache
+
+```apex
+@AuraEnabled(cacheable=true)
+public static Work_Item__c getById(Id itemId)
+```
+
+**Caractéristiques:**
+- ✅ `cacheable=true` - SELECT d'un enregistrement spécifique
+- ✅ Validation: `itemId != null`
+- ✅ Retourne **tous les champs** (via WorkItemSelector.selectByIdWithDetails)
+
+**Usage LWC (wire):**
+```javascript
+@wire(getById, { itemId: '$recordId' })
+wiredRecord;
+```
+
+---
+
+## UiError - Modèle d'erreur standardisé
+
+### Objectif
+
+Fournir un **format d'erreur uniforme** pour tous les composants UI avec traçabilité via `correlationId`.
+
+### Structure
+
+```apex
+public class UiError {
+    @AuraEnabled public String code { get; set; }
+    @AuraEnabled public String message { get; set; }
+    @AuraEnabled public String correlationId { get; set; }
+    
+    public static UiError create(String code, String message) {
+        return new UiError(code, message, LogContext.getCorrelationId());
+    }
+    
+    public String toMessage() {
+        return message + ' [Réf: ' + correlationId + ']';
+    }
 }
 ```
 
-### 2. **Service Layer** (WorkItemService)
+### Usage pattern
 
-**Responsabilité** : Encapsuler la logique métier CRUD
-
-```apex
-WorkItemService
-├─ createWorkItem(record) → Insert + Validation
-├─ updateWorkItem(record) → Update + Broadcast
-├─ deleteWorkItem(id) → Delete + Cleanup
-├─ changeStatus(id, newStatus) → Transition avec règles
-├─ findByExternalId(externalId) → Query SOQL
-└─ syncWithExternalSystem() → Intégration
-```
-
-**Isolation** :
-- Les appels SOQL restent dans le Service
-- Les règles métier pures vont dans Domain
-- Aucune logique DB dans le Trigger
-
-### 3. **Domain Layer** (WorkItemDomain)
-
-**Responsabilité** : Encapsuler les règles métier (100% testable, aucune SOQL)
-
-#### Règles Métier Implémentées
-
-| Règle | Implémentation | Test |
-|-------|------------------|------|
-| **Règle 1a** : Status = 'New' si null | `populateSingleDefaults()` | ✅ testPopulateDefaultsAssignsStatus |
-| **Règle 1b** : Priority = 'Medium' si null | `populateSingleDefaults()` | ✅ testPopulateDefaultsAssignsPriority |
-| **Règle 2** : Completed_On = NOW() si Status = Done | `applySingleBusinessRule()` | ✅ testApplyBusinessRulesCompletesOnDone |
-| **Règle 3** : Impossible Done si Due_Date < today | `validateSingleRecord()` | ✅ testValidateRejectsDoneWithPastDueDate |
-
-#### Flux d'une Règle Métier
-
-```
-WorkItemTriggerHandler.handleBeforeInsert()
-    ↓
-WorkItemDomain.populateDefaults()  // Règle 1a + 1b
-    ↓
-WorkItemDomain.validate()           // Règle 3 (Guard)
-    ↓
-If (errors) throw WorkItemBusinessException
-    ↓
-Sinon → Continuer insertion
-```
-
-#### Méthodes Utilitaires du Domain
+#### Dans le Controller (future):
 
 ```apex
-// Validation
-validate(records) → List<String> errors
-validateSingleRecord(record) → Throw exception
-
-// Defaults
-populateDefaults(records)
-populateSingleDefaults(record)
-
-// Business Rules
-applyBusinessRules(newRecords, oldMap)
-applySingleBusinessRule(newRecord, oldRecord)
-
-// Statuts
-isStatusTransitionValid(current, new) → Boolean
-isValidStatus(status) → Boolean
-isValidPriority(priority) → Boolean
-
-// Métriques
-calculateCompletionPercentage(status) → Integer (0/50/100)
-isDueSoon(dueDate) → Boolean (3 jours)
-isOverdue(dueDate, status) → Boolean
+try {
+    return WorkItemService.saveItem(item);
+} catch (BusinessException e) {
+    UiError err = UiError.create(e.getErrorCode(), e.getMessage());
+    throw new AuraHandledException(err.toMessage());
+} catch (Exception e) {
+    UiError err = UiError.create('SAVE_FAILED', 'Impossible de sauvegarder le Work Item');
+    throw new AuraHandledException(err.toMessage());
+}
 ```
 
-#### Caractéristiques du Domain
+#### Dans le LWC:
 
-✅ **Aucune dépendance externe**
-- Pas d'import de SOQL
-- Pas d'appel à d'autres services
-- Pur calcul in-memory
-
-✅ **100% testable**
-- Pas de mock nécessaire
-- Tests rapides et isolés
-- 12 tests unitaires, 100% pass rate
-
-✅ **Réutilisable**
-- Service peut appeler le Domain
-- Batch peut appeler le Domain
-- API REST peut appeler le Domain
-
-### 4. **Selector Layer** (WorkItemSelector)
-
-**Responsabilité** : Centraliser les queries SOQL
-
-```apex
-WorkItemSelector
-├─ selectById(id) → Single record
-├─ selectByIds(ids) → List<Work_Item__c>
-├─ selectByStatus(status) → List (filtré par statut)
-├─ selectDueWithinDays(days) → List (dates proches)
-├─ selectByExternalId(extId) → External ID lookup
-├─ countByStatus(status) → Integer (compte)
-└─ selectRecentOrders(daysBack) → List (historique)
+```javascript
+handleSave() {
+    saveItem({ item: this.workItem })
+        .catch(error => {
+            // Format: "Message d'erreur [Réf: abc1-2345]"
+            const message = error.body?.message || 'Erreur inconnue';
+            const match = message.match(/\[Réf: (.+)\]/);
+            const correlationId = match ? match[1] : null;
+            
+            this.showError(message, correlationId);
+        });
+}
 ```
 
-**Avantages**:
-- ✅ Tous les SOQL au même endroit
-- ✅ Facile à optimiser
-- ✅ Aide pour les tests (mock le Selector)
-- ✅ Respecte le sharing context
+### Bénéfices
+
+1. **Traçabilité** - correlationId permet de retrouver les logs exacts
+2. **Uniformité** - Tous les messages suivent le format `{message} [Réf: {id}]`
+3. **Support** - Utilisateur fournit "Réf: abc1-2345" au support
+4. **Tests** - Validation facile de la présence du correlationId
 
 ---
 
-## 🔄 Système d'Observabilité : Persistance des Logs
+## LogContext - Gestion du correlationId
 
-### 🎯 Objectif
+### Objectif
 
-Rendre le système observable en production en persistant les logs pour consultation post-mortem.
+Fournir un **identifiant de corrélation unique** par transaction Salesforce pour le tracing distribué.
 
-### 📊 Architecture des Logs
+### Implémentation
 
-```
-┌──────────────────────────────────────────────────────────┐
-│                  CODE APPLICATIF                         │
-│              LOGGER.info("message")                      │
-│              LOGGER.error("exception", e)                │
-└───────────────────┬──────────────────────────────────────┘
-                    ↓
-        ┌─────────────────────────────┐
-        │   Logger (en mémoire)       │
-        │  - Buffering des logs       │
-        │  - Format du message        │
-        │  - Level (INFO/ERROR/etc)   │
-        └─────────────────┬───────────┘
-                          ↓
-        ┌─────────────────────────────────────┐
-        │  Platform Event (Async Queue)       │
-        │  App_Log__e                         │
-        │  - Événement temporaire (24h)       │
-        │  - Survit à la transaction          │
-        │  - Sera consumé par Subscriber      │
-        └─────────────────┬───────────────────┘
-                          ↓
-        ┌─────────────────────────────────────────────┐
-        │   App_Log_EventSubscriber (Trigger)         │
-        │   - Écoute App_Log__e                       │
-        │   - Convertit App_Log__e → App_Log__c       │
-        │   - Valide les permissions CRUD             │
-        │   - Insère en bulk                          │
-        └─────────────────┬───────────────────────────┘
-                          ↓
-        ┌───────────────────────────────────────┐
-        │  Base de Données (Persistant)         │
-        │  App_Log__c Custom Object             │
-        │  - Consultable via SOQL               │
-        │  - Analysable dans Dashboards         │
-        │  - Historique complet conservé        │
-        └───────────────────────────────────────┘
-```
-
-### 🔌 Composants
-
-#### Logger (Framework existant)
-- Enregistre les logs en mémoire
-- Publie App_Log__e à la fin de la transaction
-- Respecte les flags de configuration
-
-#### App_Log__e (Platform Event)
 ```apex
-// Champs disponibles dans l'événement
-- Level__c          : INFO, ERROR, WARN, DEBUG
-- Message__c        : Texte du log (LongTextArea)
-- Source__c         : Classe.methode qui génère le log
-- RecordId__c       : ID de l'enregistrement concerné
-- CorrelationId__c  : ID de corrélation pour tracer flux
-- Tags__c           : Tags pour catégorisation (LongTextArea)
-- StackTrace__c     : Stack trace complet (LongTextArea)
-```
-
-#### App_Log_EventTrigger & App_Log_EventTriggerHandler
-```apex
-// Trigger - force-app/main/default/triggers/App_Log_EventTrigger.trigger
-trigger App_Log_EventTrigger on App_Log__e (after insert) {
-  if (Trigger.isAfter && Trigger.isInsert) {
-    App_Log_EventTriggerHandler.persistLogs(Trigger.new);
-  }
+public class LogContext {
+    private static String correlationId;
+    
+    public static String getCorrelationId() {
+        if (correlationId == null) {
+            correlationId = generateShortId();
+        }
+        return correlationId;
+    }
+    
+    @TestVisible
+    private static void reset() {
+        correlationId = null;
+    }
+    
+    private static String generateShortId() {
+        String requestId = Request.getCurrent().getRequestId();
+        if (String.isNotBlank(requestId)) {
+            return requestId.right(9); // Format: "xxxx-xxxx"
+        }
+        
+        // Fallback: UUID-based short ID
+        String uuid = String.valueOf(Crypto.getRandomLong());
+        String hex = EncodingUtil.convertToHex(Crypto.generateDigest('MD5', Blob.valueOf(uuid)));
+        return hex.substring(0, 4) + '-' + hex.substring(4, 8);
+    }
 }
+```
 
-// Handler - force-app/main/default/classes/logging/App_Log_EventTriggerHandler.cls
-public with sharing class App_Log_EventTriggerHandler {
-  public static void persistLogs(List<App_Log__e> logEvents) {
-    // 1. Vérifier si persistLogs = true (Feature Flag)
-    if (!FeatureFlags.persistLogs()) {
-      return; // Ignorer si persistance désactivée
+### Caractéristiques
+
+- **Thread-safe** - Utilise `Request.getCurrent().getRequestId()` (unique par transaction)
+- **Format court** - 8 caractères ("abc1-2345") pour faciliter la lecture
+- **Lazy initialization** - Généré au premier appel uniquement
+- **Testable** - `reset()` permet d'isoler les tests
+
+### Cycle de vie
+
+```
+Transaction Start
+      ↓
+getCorrelationId() appelé (1ère fois)
+      ↓
+generateShortId() → "abc1-2345"
+      ↓
+correlationId cached
+      ↓
+Appels suivants → retourne "abc1-2345"
+      ↓
+Transaction End → correlationId destroyed
+```
+
+---
+
+## Règles Cacheable en détail
+
+### ✅ Quand utiliser cacheable=true
+
+**Critères TOUS requis:**
+1. ✅ Méthode **read-only** (SELECT uniquement)
+2. ✅ Pas de **DML** (INSERT, UPDATE, DELETE, UNDELETE)
+3. ✅ Pas d'appels **asynchrones** (@future, Queueable, Batch, Schedulable)
+4. ✅ Pas de **sendEmail()**
+5. ✅ Paramètres **primitifs** ou **sérialisables** uniquement
+6. ✅ Données **non-sensibles** au temps (pas de `System.now()` dans la logique)
+
+**Exemples valides:**
+- `getItems(String status, String searchTerm, Integer limitSize)` ✅
+- `getById(Id itemId)` ✅
+- `getPicklistValues(String objectName, String fieldName)` ✅
+
+**Bénéfices:**
+- 🚀 **Performance** - Cache côté client (LWC wire service)
+- 🔄 **Auto-refresh** - Invalidation automatique lors de DML
+- 💾 **Offline** - Données disponibles en mode offline (Salesforce Mobile)
+
+### ❌ Quand NE PAS utiliser cacheable
+
+**Si l'un de ces critères:**
+1. ❌ Contient DML (INSERT/UPDATE/DELETE)
+2. ❌ Appelle des méthodes asynchrones
+3. ❌ Modifie l'état du système
+4. ❌ Résultat dépend du **moment d'exécution** (ex: calcul de date)
+5. ❌ Données sensibles nécessitant **fresh data** systématiquement
+
+**Exemples invalides:**
+- `saveItem(Work_Item__c item)` ❌ (DML)
+- `markDone(Id itemId)` ❌ (UPDATE)
+- `sendNotification(Id userId)` ❌ (sendEmail)
+- `getCurrentTime()` ❌ (dépend du moment)
+
+### Pattern wire vs imperative
+
+#### Wire Service (cacheable=true)
+
+```javascript
+import { LightningElement, wire } from 'lwc';
+import getItems from '@salesforce/apex/WorkItemController.getItems';
+
+export default class WorkItemList extends LightningElement {
+    @wire(getItems, { status: 'In Progress', searchTerm: '', limitSize: 50 })
+    wiredItems;
+    
+    // Auto-refresh lors de DML sur Work_Item__c
+}
+```
+
+**Avantages:**
+- Auto-refresh lors de DML
+- Cache automatique
+- Gestion d'erreurs simplifiée
+
+#### Imperative Call (non-cacheable)
+
+```javascript
+import saveItem from '@salesforce/apex/WorkItemController.saveItem';
+
+async handleSave() {
+    try {
+        const result = await saveItem({ item: this.workItem });
+        // Rafraîchir manuellement le wire service
+        refreshApex(this.wiredItems);
+    } catch (error) {
+        // Handle error
+    }
+}
+```
+
+**Quand utiliser:**
+- Mutations (INSERT/UPDATE/DELETE)
+- Actions utilisateur (bouton save, delete)
+- Appels conditionnels
+
+---
+
+## Exception Handling Strategy
+
+### Hiérarchie des exceptions
+
+```
+Exception (System)
+    ↓
+BusinessException (Custom)
+    ├─ ITEM_NOT_FOUND
+    ├─ ITEM_OVERDUE
+    ├─ INVALID_STATUS
+    └─ ...
+    ↓
+AuraHandledException (Salesforce)
+    → Envoyé au LWC
+```
+
+### Pattern Controller
+
+```apex
+@AuraEnabled
+public static ReturnType methodName(ParamType param) {
+    // 1. Validation des inputs
+    if (param == null) {
+        throw new AuraHandledException('Paramètre requis: param');
     }
     
-    // 2. Valider CRUD (Vérifier les permissions)
-    if (!App_Log__c.sObjectType.getDescribe(SObjectDescribeOptions.DEFERRED).isCreateable()) {
-      return; // Silencieux si pas de permission
+    try {
+        // 2. Appel Service layer
+        return ServiceClass.businessMethod(param);
+        
+    } catch (BusinessException e) {
+        // 3. Exception métier → message utilisateur
+        throw new AuraHandledException('Erreur métier: ' + e.getMessage() + ' [' + e.getErrorCode() + ']');
+        
+    } catch (Exception e) {
+        // 4. Exception technique → message générique
+        throw new AuraHandledException('Erreur technique: ' + e.getMessage());
+    }
+}
+```
+
+### Future: Intégration UiError
+
+```apex
+@AuraEnabled
+public static ReturnType methodName(ParamType param) {
+    if (param == null) {
+        UiError err = UiError.create('PARAM_NULL', 'Paramètre requis: param');
+        throw new AuraHandledException(err.toMessage());
     }
     
-    // 3. Convertir tous les App_Log__e → App_Log__c (Mappage direct)
-    List<App_Log__c> logsToInsert = new List<App_Log__c>();
-    for (App_Log__e logEvent : logEvents) {
-      logsToInsert.add(convertEventToRecord(logEvent));
+    try {
+        return ServiceClass.businessMethod(param);
+    } catch (BusinessException e) {
+        UiError err = UiError.create(e.getErrorCode(), e.getMessage());
+        throw new AuraHandledException(err.toMessage());
+    } catch (Exception e) {
+        UiError err = UiError.create('UNEXPECTED_ERROR', 'Une erreur inattendue s\'est produite');
+        throw new AuraHandledException(err.toMessage());
+    }
+}
+```
+
+**Bénéfices:**
+- ✅ Tous les messages incluent `correlationId`
+- ✅ Format uniforme: `"{message} [Réf: {correlationId}]"`
+- ✅ Traçabilité complète des erreurs
+- ✅ Support utilisateur facilité
+
+---
+
+## Logging Strategy (Future)
+
+### Statut actuel
+
+⚠️ **Logging framework existant en refactor** - Old Logger has compilation errors
+
+**État:**
+- ✅ LogContext déployé avec `getCorrelationId()`
+- ✅ UiError créé avec correlationId
+- ⚠️ ControllerLogger créé mais non déployé (bloqué par old Logger)
+- ❌ WorkItemController utilise `AuraHandledException` sans UiError (version stable)
+
+### Architecture cible (après refactor Logger)
+
+#### ControllerLogger (simplifié)
+
+```apex
+public class ControllerLogger {
+    public static void info(String source, String message, String details) {
+        String corrId = LogContext.getCorrelationId();
+        System.debug(LoggingLevel.INFO, '[' + corrId + '] ' + source + ' - ' + message + 
+                     (String.isNotBlank(details) ? ' | ' + details : ''));
     }
     
-    // 4. Insérer en bulk (Bulk-safe, aucune limite DML)
-    if (!logsToInsert.isEmpty()) {
-      insert logsToInsert;
+    public static void error(String source, String message, Exception ex, Id recordId) {
+        String corrId = LogContext.getCorrelationId();
+        String logMsg = '[' + corrId + '] ' + source + ' - ' + message;
+        
+        if (recordId != null) {
+            logMsg += ' | RecordId=' + recordId;
+        }
+        
+        if (ex != null) {
+            logMsg += ' | Exception=' + ex.getTypeName() + ': ' + ex.getMessage();
+            System.debug(LoggingLevel.ERROR, logMsg);
+            System.debug(LoggingLevel.ERROR, ex.getStackTraceString());
+        } else {
+            System.debug(LoggingLevel.ERROR, logMsg);
+        }
     }
-  }
-  
-  // Conversion pure : pas de logique métier
-  private static App_Log__c convertEventToRecord(App_Log__e logEvent) {
-    return new App_Log__c(
-      Level__c = logEvent.Level__c,
-      Message__c = logEvent.Message__c,
-      Source__c = logEvent.Source__c,
-      RecordId__c = logEvent.RecordId__c,
-      CorrelationId__c = logEvent.CorrelationId__c,
-      Tags__c = logEvent.Tags__c,
-      StackTrace__c = logEvent.StackTrace__c
+}
+```
+
+#### Pattern Controller avec logging
+
+```apex
+@AuraEnabled(cacheable=true)
+public static List<Work_Item__c> getItems(String status, String searchTerm, Integer limitSize) {
+    ControllerLogger.info('WorkItemController.getItems', 'Début', 
+                          'status=' + status + ', searchTerm=' + searchTerm + ', limitSize=' + limitSize);
+    
+    try {
+        List<Work_Item__c> items = WorkItemService.getItems(status, searchTerm, limitSize);
+        ControllerLogger.info('WorkItemController.getItems', 'Succès', items.size() + ' items retournés');
+        return items;
+        
+    } catch (BusinessException e) {
+        ControllerLogger.error('WorkItemController.getItems', 'Erreur métier', e, null);
+        UiError err = UiError.create(e.getErrorCode(), e.getMessage());
+        throw new AuraHandledException(err.toMessage());
+        
+    } catch (Exception e) {
+        ControllerLogger.error('WorkItemController.getItems', 'Erreur technique', e, null);
+        UiError err = UiError.create('FETCH_ITEMS_FAILED', 'Impossible de récupérer les Work Items');
+        throw new AuraHandledException(err.toMessage());
+    }
+}
+```
+
+**Logs générés:**
+
+```
+[abc1-2345] WorkItemController.getItems - Début | status=In Progress, searchTerm=urgent, limitSize=50
+[abc1-2345] WorkItemController.getItems - Succès | 12 items retournés
+```
+
+ou en cas d'erreur:
+
+```
+[abc1-2345] WorkItemController.getItems - Début | status=In Progress, searchTerm=urgent, limitSize=50
+[abc1-2345] WorkItemController.getItems - Erreur technique | Exception=QueryException: List has no rows for assignment to SObject
+[Stacktrace...]
+```
+
+### Bénéfices du logging avec correlationId
+
+1. **Traçabilité complète** - Du log Apex au message UI
+2. **Debugging facilité** - Filtrer tous les logs par correlationId
+3. **Support utilisateur** - Utilisateur fournit "Réf: abc1-2345", support trouve les logs
+4. **Monitoring** - Identifier patterns d'erreurs (grouper par code)
+
+---
+
+## Testing Strategy
+
+### WorkItemControllerTest - Structure
+
+**Couverture actuelle: 10/10 tests (100%)**
+
+#### Tests CRUD basiques
+
+1. ✅ `testGetItemsReturnsFilteredItems` - Filter par status
+2. ✅ `testGetItemsSearchesByText` - Recherche texte
+3. ✅ `testSaveItemInsert` - INSERT nouveau Work Item
+4. ✅ `testSaveItemUpdate` - UPDATE existant
+5. ✅ `testMarkDoneSetsStatusDone` - Marquer terminé
+6. ✅ `testGetByIdReturnsCompleteItem` - Récupération par ID
+
+#### Tests validation et exceptions
+
+7. ✅ `testSaveItemWithNullThrowsAuraHandledExceptionWithCorrelationId` - saveItem(null)
+8. ✅ `testMarkDoneWithNullIdThrowsAuraHandledExceptionWithCorrelationId` - markDone(null)
+9. ✅ `testMarkDoneWithOverdueItemThrowsBusinessErrorWithCorrelationId` - Business rule violation
+10. ✅ `testMarkDoneWithNonExistentIdThrowsAuraHandledExceptionWithCorrelationId` - ID inexistant
+11. ✅ `testGetByIdWithNullIdThrowsAuraHandledExceptionWithCorrelationId` - getById(null)
+12. ✅ `testGetByIdWithNonExistentIdThrowsAuraHandledExceptionWithCorrelationId` - ID inexistant
+
+#### Tests limites
+
+13. ✅ `testGetItemsRespectsMaxLimit` - Limite max 500
+14. ✅ `testGetItemsAppliesDefaultLimit` - Default 50
+
+### Pattern de test
+
+#### Test validation input
+
+```apex
+@IsTest
+static void testSaveItemWithNullThrowsAuraHandledException() {
+    Test.startTest();
+    try {
+        WorkItemController.saveItem(null);
+        Assert.fail('Expected AuraHandledException');
+    } catch (AuraHandledException e) {
+        Assert.isTrue(e.getMessage().contains('requis'), 'Message should mention required');
+    }
+    Test.stopTest();
+}
+```
+
+#### Test avec correlationId (future)
+
+```apex
+@IsTest
+static void testSaveItemWithNullIncludesCorrelationId() {
+    LogContext.reset(); // Reset pour isolation
+    
+    Test.startTest();
+    try {
+        WorkItemController.saveItem(null);
+        Assert.fail('Expected AuraHandledException');
+    } catch (AuraHandledException e) {
+        String message = e.getMessage();
+        
+        // Valider format: "Message [Réf: abc1-2345]"
+        Assert.isTrue(message.contains('[Réf:'), 'Should contain correlation reference');
+        
+        // Extract correlationId
+        Pattern p = Pattern.compile('\\[Réf: ([a-zA-Z0-9\\-]+)\\]');
+        Matcher m = p.matcher(message);
+        Assert.isTrue(m.find(), 'Should match correlationId pattern');
+        
+        String correlationId = m.group(1);
+        Assert.areEqual(8, correlationId.length(), 'CorrelationId should be 8 chars');
+        Assert.isTrue(correlationId.contains('-'), 'CorrelationId should contain hyphen');
+    }
+    Test.stopTest();
+}
+```
+
+#### Test Business Exception
+
+```apex
+@IsTest
+static void testMarkDoneWithOverdueItemThrowsBusinessError() {
+    Work_Item__c item = TestDataFactory.createWorkItem('Test', 'In Progress', Date.today().addDays(-5));
+    insert item;
+    
+    Test.startTest();
+    try {
+        WorkItemController.markDone(item.Id);
+        Assert.fail('Expected AuraHandledException for overdue item');
+    } catch (AuraHandledException e) {
+        Assert.isTrue(e.getMessage().contains('ITEM_OVERDUE'), 'Should contain error code');
+    }
+    Test.stopTest();
+}
+```
+
+### Best practices tests
+
+1. **Isolation** - Utiliser `LogContext.reset()` entre tests pour isoler correlationId
+2. **Bulk testing** - Tester avec List<Work_Item__c> si applicable
+3. **Governor limits** - Vérifier limites SOQL (getItems avec MAX_LIMIT)
+4. **Positive + Negative** - Tester succès ET échecs
+5. **Message validation** - Vérifier format et contenu des exceptions
+
+---
+
+## Performance Considerations
+
+### Limites SOQL
+
+**Constants Controller:**
+```apex
+private static final Integer DEFAULT_LIMIT = 50;
+private static final Integer MAX_LIMIT = 500;
+```
+
+**Rationale:**
+- DEFAULT_LIMIT (50) - Balance UX et performance
+- MAX_LIMIT (500) - Protège contre SOQL limit (50,000 rows)
+- Évite de retourner des datasets trop larges au LWC
+
+### Cache Strategy
+
+**Wire service (cacheable=true):**
+- ✅ Cache côté client automatique
+- ✅ Invalidation auto lors de DML sur Work_Item__c
+- ✅ Réduit appels serveur
+
+**Imperative calls:**
+- ❌ Pas de cache automatique
+- ✅ Utiliser `refreshApex(wiredData)` après DML
+
+### Bulk operations
+
+**Current state:**
+- Controller gère **1 record à la fois** (saveItem, markDone, getById)
+- WorkItemService/Domain supportent **bulk operations**
+
+**Future enhancement:**
+```apex
+@AuraEnabled
+public static List<Work_Item__c> saveItems(List<Work_Item__c> items) {
+    // Bulk insert/update
+    return WorkItemService.saveItems(items);
+}
+```
+
+---
+
+## Security Considerations
+
+### CRUD/FLS
+
+**Current:**
+- ❌ Pas de vérification explicite CRUD/FLS dans Controller
+- ⚠️ with SHARING appliqué sur toutes les classes
+
+**Best practice (à ajouter):**
+```apex
+public with sharing class WorkItemController {
+    @AuraEnabled(cacheable=true)
+    public static List<Work_Item__c> getItems(...) {
+        if (!Schema.sObjectType.Work_Item__c.isAccessible()) {
+            throw new AuraHandledException('Accès refusé: Work_Item__c');
+        }
+        // ...
+    }
+}
+```
+
+### Input validation
+
+**Current:**
+- ✅ Validation null checks
+- ✅ Validation limitSize range
+- ⚠️ Pas de sanitization spécifique (searchTerm)
+
+**Considérations:**
+- SOQL Injection: WorkItemSelector utilise binding variables (✅ safe)
+- XSS: Salesforce échappe automatiquement dans LWC (✅ safe)
+
+---
+
+## Future Enhancements
+
+### 1. Intégration complète UiError
+
+**Statut:** Fondation déployée, intégration pending
+
+**Steps:**
+1. ✅ LogContext déployé
+2. ✅ UiError créé
+3. ⏳ Refactor old Logger framework (blocker)
+4. ⏳ Déployer ControllerLogger
+5. ⏳ Intégrer UiError dans WorkItemController
+6. ⏳ Mettre à jour tests avec validation correlationId
+
+### 2. Logging complet
+
+**Architecture cible:**
+- Entrance logging: Paramètres entrants
+- Exit logging: Résultat + durée
+- Error logging: Exception + stacktrace + recordId
+
+**Format:**
+```
+[abc1-2345] WorkItemController.getItems - Début | status=In Progress, limitSize=50
+[abc1-2345] WorkItemController.getItems - Succès | 12 items, duration=45ms
+```
+
+### 3. Métriques et monitoring
+
+**Objectifs:**
+- Tracker temps de réponse par méthode
+- Identifier méthodes les plus utilisées
+- Détecter patterns d'erreurs
+
+**Implementation:**
+```apex
+public static void logMetric(String method, Long duration, Boolean success) {
+    // Store in Platform Event or Custom Object
+    Metric__e evt = new Metric__e(
+        Method__c = method,
+        Duration__c = duration,
+        Success__c = success,
+        CorrelationId__c = LogContext.getCorrelationId()
     );
-  }
+    EventBus.publish(evt);
 }
 ```
 
-#### App_Log__c (Custom Object)
-```xml
-<!-- Table de stockage pour les logs persistants -->
-<CustomObject>
-  <label>Application Log</label>
-  <pluralLabel>Application Logs</pluralLabel>
-  <fields>
-    <Level__c>Text(255)</Level__c>
-    <Message__c>LongTextArea(32768)</Message__c>
-    <Source__c>Text(255) - Classe.méthode</Source__c>
-    <RecordId__c>Text(255) - ID de l'enregistrement</RecordId__c>
-    <CorrelationId__c>Text(255) - ID de corrélation</CorrelationId__c>
-    <Tags__c>LongTextArea(32768) - Tags JSON</Tags__c>
-    <StackTrace__c>LongTextArea(32768) - Stack trace</StackTrace__c>
-    <CreatedDate>Auto - Timestamp création</CreatedDate>
-  </fields>
-</CustomObject>
-```
+### 4. Bulk operations support
 
-### 🔄 Flux Complet d'un Log
-
-**Scénario** : Appel API pour créer un Work Item avec erreur
-
-```
-1️⃣ API Request reçue
-   WorkItemController.createWorkItem(json)
-   
-2️⃣ Logs générés pendant l'exécution
-   LOGGER.info("Création Work Item...")           → App_Log__e #1
-   LOGGER.debug("Validation...")                  → App_Log__e #2
-   LOGGER.error("Validation échouée", exception)  → App_Log__e #3
-   
-3️⃣ Fin de la transaction
-   Salesforce publie les 3 App_Log__e
-   
-4️⃣ App_Log_EventSubscriber reçoit les événements (ASYNC)
-   Pour chaque App_Log__e :
-   - Vérifier FeatureFlags.persistLogs() = true
-   - Convertir en App_Log__c
-   - Vérifier permissions CRUD
-   - Insérer en BD
-   
-5️⃣ Recherche post-mortem
-   SELECT Message__c, Level__c, Class_Name__c, Timestamp__c
-   FROM App_Log__c
-   WHERE Request_Id__c = 'REQ-123'
-   ORDER BY Timestamp__c
-   
-   Résultat :
-   ✓ 2024-12-28 14:32:01 - INFO - API request received
-   ✓ 2024-12-28 14:32:02 - DEBUG - Validation started
-   ✓ 2024-12-28 14:32:03 - ERROR - Validation failed: Missing required field
-```
-
-### ✨ Avantages de cette Approche
-
-| Aspect | Avantage | Raison |
-|--------|----------|--------|
-| **Async** | Les logs n'impactent pas la performance | Platform Events = découplement temporel |
-| **Bulk-safe** | Plusieurs logs = pas de souci DML | Event Subscriber handle plusieurs messages |
-| **Persistent** | Consultable après 24h | Stocké dans App_Log__c (Custom Object) |
-| **Observable** | Dashboards, rapports, SOQL | BD standard Salesforce |
-| **Configurable** | On peut désactiver via Feature Flag | `persistLogs` dans Custom Metadata |
-| **Graceful** | Les erreurs de log ne cassent pas l'app | Try-catch dans handleMessage |
-| **Sécurisé** | Respecte les permissions CRUD | Validation avant insert |
-
-### 🧪 Tests de Persistance
-
+**Ajout de méthodes bulk:**
 ```apex
-App_Log_EventSubscriberTest (renamed from App_Log_EventTriggerHandlerTest)
-├─ testLogPersistence() → Insertion via trigger réussie
-├─ testBulkPersistence() → 10+ logs en même temps (Bulk-safe)
-├─ testAllAvailableFieldsMapped() → Tous les champs mapés correctement
-├─ testConversionHandlesNull() → Valeurs null gérées proprement
-└─ testErrorHandlingGraceful() → Publication sans exception
+@AuraEnabled
+public static List<Work_Item__c> saveItems(List<Work_Item__c> items);
 
-Résultats : 5/5 tests ✅ 100% pass rate
-Intégrés dans la suite de test globale : 195/195 ✅
+@AuraEnabled
+public static void markDoneMultiple(List<Id> itemIds);
 ```
 
 ---
 
-## 🔐 Sécurité & Permissions
+## Références
 
-### Custom Permissions
+### Classes principales
 
-```
-Bypass_All_Automation
-├─ Assignée à : Admin users
-├─ Effet : Désactive TOUS les déclencheurs
-├─ Vérifié dans : WorkItemTriggerHandler.shouldBypassAutomation()
-└─ Cas d'usage : Maintenance, import de données en masse
-
-Bypass_WorkItem_Automation
-├─ Assignée à : Power Users, Integration users
-├─ Effet : Désactive SEULEMENT WorkItem triggers
-├─ Vérifié dans : WorkItemTriggerHandler.shouldBypassAutomation()
-└─ Cas d'usage : Sync externes, corrections ponctuelles
-```
-
-### CRUD Validation
-
-```apex
-// Avant toute insertion
-if (!App_Log__c.sObjectType.getDescribe().isCreateable()) {
-  LOGGER.warn('Pas de permission de création');
-  return; // Silencieux, ne casse pas l'app
-}
-
-// Respecte le partage (with sharing)
-public with sharing class App_Log_EventSubscriber
-```
-
-### Data Access Control
-
-- **WorkItemTriggerHandler** : `with sharing` (respecte OWD)
-- **WorkItemService** : `with sharing` (respecte FLS)
-- **WorkItemSelector** : `with sharing` (respecte Field Access)
-- **App_Log_EventSubscriber** : `with sharing` (respecte permissions)
-
----
-
-## 📈 Performance
-
-### Limites Respectées
-
-| Limite | Valeur | Implémentation |
-|--------|--------|-----------------|
-| DML Batch Size | 10,000 | Inserts bulkifiées en Service |
-| SOQL Queries | 100 par transaction | Pas de SOQL dans les boucles |
-| Apex CPU Time | 10,000 ms | Logique légère dans Domain |
-| Event Subscribers | 5 concurrent | 1 subscriber (App_Log_EventSubscriber) |
-
-### Optimisations
-
-- ✅ **Pas de SOQL dans les boucles** : Utiliser collecté puis query une fois
-- ✅ **Bulk inserts** : Insert lista plutôt que item par item
-- ✅ **Selectors centralisés** : Réutilisation des requêtes
-- ✅ **Domain layer isolé** : Pas de DB call en calcul métier
-- ✅ **Async logging** : Platform Events ne bloquent pas
-
----
-
-## 🔄 Flux Métier Complet : Création d'un Work Item
-
-```
-1. API REST (WorkItemController)
-   POST /api/work-items
-   Body: { name: "...", priority: "High" }
-   
-2. Trigger (WorkItemTrigger)
-   ├─ beforeInsert event
-   │  └─ WorkItemTriggerHandler.handleBeforeInsert()
-   └─ afterInsert event
-      └─ WorkItemTriggerHandler.handleAfterInsert()
-
-3. Handler Layer (WorkItemTriggerHandler)
-   ├─ Vérifier shouldBypassAutomation() ? Si oui, return
-   ├─ Filtrer les enregistrements dupliqués (Anti-recursion)
-   │
-   ├─ beforeInsert :
-   │  ├─ WorkItemDomain.populateDefaults() → Status='New', Priority='Medium'
-   │  ├─ WorkItemDomain.validate() → Règles métier
-   │  └─ Si erreur → throw WorkItemBusinessException
-   │
-   └─ afterInsert :
-      └─ WorkItemDomain.applyBusinessRules() → (Pas d'effet ici pour insert)
-
-4. Business Logic Logs
-   LOGGER.info("beforeInsert: Populated defaults")
-   LOGGER.info("beforeInsert: Validation passed")
-   ↓ Crée App_Log__e (en mémoire)
-
-5. Fin de Transaction
-   Salesforce publie les App_Log__e
-
-6. Event Subscriber (Async)
-   App_Log_EventSubscriber.handleMessage()
-   ├─ Vérifier FeatureFlags.persistLogs()
-   ├─ Parser JSON → App_Log__e
-   ├─ Convertir → App_Log__c
-   ├─ Valider CRUD
-   └─ Insert dans BD
-
-7. Résultat
-   ✅ Work_Item__c créé avec defaults
-   ✅ App_Log__c records persistés (consultables)
-   ✅ Audit trail complet
-```
-
----
-
-## 📊 Métriques de Couverture
+- **WorkItemController** - Controller layer (@AuraEnabled methods)
+- **WorkItemService** - Service layer (orchestration)
+- **WorkItemDomain** - Domain layer (business rules)
+- **WorkItemSelector** - Data access layer (SOQL)
+- **UiError** - Error model avec correlationId
+- **LogContext** - Correlation ID management
 
 ### Tests
 
-| Couche | Tests | Pass Rate |
-|--------|-------|-----------|
-| Domain | 12 | 100% ✅ |
-| Event Subscriber | 7 | 100% ✅ |
-| Service | 10 | 100% ✅ |
-| Trigger | 12 | 100% ✅ |
-| Selector | 10 | 100% ✅ |
-| Controller | 12 | 100% ✅ |
-| **TOTAL** | **195** | **100%** ✅ |
-
-### Code Coverage
-
-```
-WorkItemDomain              93% (règles métier)
-WorkItemService             95% (CRUD)
-WorkItemSelector            98% (SOQL)
-WorkItemTriggerHandler      85% (orchestration)
-App_Log_EventSubscriber     96% (persistance)
-Logger                      96% (logging)
----
-Org-wide Coverage          44%+ (avant persistance)
-```
-
----
-
-## 🚀 Déploiement
-
-### Prérequis
-
-- Salesforce Edition : Developer/Sandbox/Production
-- API Version : 65.0+
-- Permissions : Modify All Data, Customize Application
-
-### Étapes de Déploiement
-
-```bash
-# 1. Récupérer le repo
-git clone <repo-url>
-cd WorkItems-Service-Cloud-Integration-Lab
-
-# 2. Valider la syntaxe
-npm run prettier
-npm run lint
-
-# 3. Lancer les tests localement
-npm run test
-
-# 4. Dry-run contre org
-sf project deploy start --dry-run --target-org devEdition
-
-# 5. Déployer
-sf project deploy start --target-org devEdition
-
-# 6. Vérifier les logs
-sf apex run test -c -w 10 --target-org devEdition
-```
-
----
-
-## 📝 Conventions de Code
-
-### Nommage
-
-| Type | Convention | Exemple |
-|------|-----------|---------|
-| Classes | PascalCase | `WorkItemService` |
-| Méthodes | camelCase | `validateBeforeInsert()` |
-| Variables | camelCase | `workItemList` |
-| Constants | UPPER_CASE | `MAX_BATCH_SIZE` |
-| Custom Objects | PascalCase + __c | `Work_Item__c` |
-| Custom Fields | snake_case + __c | `Created_On__c` |
+- **WorkItemControllerTest** - 10/10 tests, 100% coverage
+- **TestDataFactory** - Test data generation
 
 ### Documentation
 
-```apex
-/**
- * @author Prénom Nom
- * @date JJ/MM/YYYY
- * @description Ce que fait la classe/méthode
- * 
- * Responsabilités clés.
- * Dépendances notables.
- * 
- * Exemple :
- * List<Work_Item__c> items = WorkItemSelector.selectById(id);
- */
-```
+- **ARCHITECTURE.md** - Ce document
+- **SPEC.md** - Spécifications fonctionnelles
+- **CODE_REVIEW_CHECKLIST.md** - Checklist revue de code
+- **DEPLOYMENT_CHECKLIST.md** - Checklist déploiement
 
 ---
 
-## 🔗 Références
+## Changelog
 
-- **Salesforce Best Practices** : [SOQL Optimization](https://developer.salesforce.com/docs/atlas.en-us.salesforce_app_limits_cheatsheet.meta/salesforce_app_limits_cheatsheet/)
-- **Clean Architecture** : [Uncle Bob's Clean Architecture](https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html)
-- **Apex Patterns** : [Salesforce Apex Patterns](https://github.com/apex-patterns/apex-patterns)
-- **Platform Events** : [Salesforce Platform Events](https://developer.salesforce.com/docs/atlas.en-us.platform_events.meta/platform_events/)
+### 2024-12-31 - JOUR 5 Foundation
+
+**Added:**
+- ✅ LogContext.cls avec getCorrelationId()
+- ✅ UiError.cls avec factory pattern
+- ✅ Documentation ARCHITECTURE.md complète
+
+**Deferred:**
+- ⏳ ControllerLogger (blocked by old Logger framework)
+- ⏳ UiError integration in WorkItemController
+- ⏳ Tests avec validation correlationId
+
+**Status:**
+- WorkItemController: Version stable 21e466d (10/10 tests)
+- Foundation déployée: LogContext + UiError ready
+- Logging complet: Deferred pending Logger refactor
 
 ---
 
-**Version** : 1.0  
-**Dernière mise à jour** : 28/12/2025  
-**Auteur** : Hamza Amari  
-**Status** : En production ✅
+*Document généré le 2024-12-31 dans le cadre de JOUR 5 - Controller Layer Documentation*
