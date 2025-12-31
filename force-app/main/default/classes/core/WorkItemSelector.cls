@@ -10,14 +10,28 @@ public with sharing class WorkItemSelector {
     'WorkItemSelector'
   );
 
+  // Limite maximale pour les requêtes UI/API
+  private static final Integer MAX_UI_LIMIT = 100;
+  private static final Integer DEFAULT_UI_LIMIT = 50;
+
   /**
-   * @description Récupère tous les champs d'un Work Item.
+   * @description Récupère tous les champs d'un Work Item (pour détails).
    * @return String contenant tous les champs séparés par des virgules
    */
   private static String getAllFields() {
     return 'Id, Name, Status__c, Priority__c, Due_Date__c, ' +
       'Completed_On__c, Description__c, Category__c, ' +
       'External_Id__c, CreatedDate, LastModifiedDate';
+  }
+
+  /**
+   * @description Récupère uniquement les champs essentiels pour liste UI (DTO minimal).
+   * Optimise les performances en ne récupérant que le minimum nécessaire.
+   * @return String contenant les champs essentiels séparés par des virgules
+   */
+  private static String getListFields() {
+    return 'Id, Name, Status__c, Priority__c, Due_Date__c, ' +
+      'Category__c, Completed_On__c, External_Id__c';
   }
 
   /**
@@ -287,6 +301,170 @@ public with sharing class WorkItemSelector {
       return results;
     } catch (Exception e) {
       LOGGER.error('getCreatedAfter', 'Erreur lors de la récupération par date de création', e);
+      throw e;
+    }
+  }
+
+  /**
+   * @description Recherche Work Items avec filtres UI/API (performant).
+   * Retourne uniquement les champs essentiels (DTO minimal).
+   * Limite le volume pour optimiser les performances UI.
+   * 
+   * @param status Filtre par statut (optionnel, null = tous)
+   * @param searchTerm Recherche texte dans Name et Category (optionnel, null = pas de filtre)
+   * @param limitSize Nombre max de résultats (null = DEFAULT_UI_LIMIT, max = MAX_UI_LIMIT)
+   * @return List<Work_Item__c> limitée et triée par LastModifiedDate DESC
+   */
+  public static List<Work_Item__c> search(
+    String status,
+    String searchTerm,
+    Integer limitSize
+  ) {
+    checkCRUDPermissions('READ');
+
+    // Normaliser la limite
+    if (limitSize == null || limitSize <= 0) {
+      limitSize = DEFAULT_UI_LIMIT;
+    }
+    if (limitSize > MAX_UI_LIMIT) {
+      limitSize = MAX_UI_LIMIT;
+    }
+
+    try {
+      Long startTime = System.currentTimeMillis();
+      LOGGER.debug(
+        'search',
+        'Recherche Work Items - Status: ' + status + 
+        ', SearchTerm: ' + searchTerm + 
+        ', Limit: ' + limitSize
+      );
+
+      // Construire la requête dynamiquement
+      String query = 'SELECT ' + getListFields() + ' FROM Work_Item__c ';
+      List<String> conditions = new List<String>();
+
+      // Filtre par statut
+      if (String.isNotBlank(status)) {
+        conditions.add('Status__c = :status');
+      }
+
+      // Filtre recherche texte (Name OU Category)
+      if (String.isNotBlank(searchTerm)) {
+        String searchPattern = '%' + String.escapeSingleQuotes(searchTerm) + '%';
+        conditions.add('(Name LIKE :searchPattern OR Category__c LIKE :searchPattern)');
+      }
+
+      // Ajouter les conditions
+      if (!conditions.isEmpty()) {
+        query += 'WHERE ' + String.join(conditions, ' AND ') + ' ';
+      }
+
+      // Tri par date de modification (plus récents d'abord)
+      query += 'ORDER BY LastModifiedDate DESC ';
+
+      // Limite
+      query += 'LIMIT :limitSize';
+
+      LOGGER.debug('search', 'Query: ' + query);
+
+      // Variables pour binding dynamique
+      String searchPattern = String.isNotBlank(searchTerm) 
+        ? '%' + String.escapeSingleQuotes(searchTerm) + '%' 
+        : null;
+
+      List<Work_Item__c> results = Database.query(query);
+
+      Long elapsedTime = System.currentTimeMillis() - startTime;
+      LOGGER.info(
+        'search',
+        results.size() + ' Work Items trouvés en ' + elapsedTime + 'ms' +
+        ' (Status: ' + status + ', SearchTerm: ' + searchTerm + ', Limit: ' + limitSize + ')'
+      );
+
+      return results;
+    } catch (Exception e) {
+      LOGGER.error('search', 'Erreur lors de la recherche Work Items', e);
+      throw e;
+    }
+  }
+
+  /**
+   * @description Récupère les Work Items les plus récents (modifiés récemment).
+   * Utile pour dashboard "Recent Items".
+   * 
+   * @param limitSize Nombre max de résultats (null = DEFAULT_UI_LIMIT, max = MAX_UI_LIMIT)
+   * @return List<Work_Item__c> triée par LastModifiedDate DESC
+   */
+  public static List<Work_Item__c> recent(Integer limitSize) {
+    checkCRUDPermissions('READ');
+
+    // Normaliser la limite
+    if (limitSize == null || limitSize <= 0) {
+      limitSize = DEFAULT_UI_LIMIT;
+    }
+    if (limitSize > MAX_UI_LIMIT) {
+      limitSize = MAX_UI_LIMIT;
+    }
+
+    try {
+      Long startTime = System.currentTimeMillis();
+      LOGGER.debug('recent', 'Récupération des ' + limitSize + ' Work Items les plus récents');
+
+      List<Work_Item__c> results = Database.query(
+        'SELECT ' + getListFields() + ' ' +
+        'FROM Work_Item__c ' +
+        'ORDER BY LastModifiedDate DESC ' +
+        'LIMIT :limitSize'
+      );
+
+      Long elapsedTime = System.currentTimeMillis() - startTime;
+      LOGGER.info(
+        'recent',
+        results.size() + ' Work Items récents trouvés en ' + elapsedTime + 'ms (Limit: ' + limitSize + ')'
+      );
+
+      return results;
+    } catch (Exception e) {
+      LOGGER.error('recent', 'Erreur lors de la récupération des Work Items récents', e);
+      throw e;
+    }
+  }
+
+  /**
+   * @description Récupère Work Items par Ids (optimisé pour UI avec champs minimaux).
+   * Version allégée de getByIds() pour listes UI.
+   * 
+   * @param workItemIds Set d'Ids
+   * @return List<Work_Item__c> avec champs essentiels uniquement
+   */
+  public static List<Work_Item__c> byIds(Set<Id> workItemIds) {
+    checkCRUDPermissions('READ');
+
+    if (workItemIds == null || workItemIds.isEmpty()) {
+      LOGGER.debug('byIds', 'Set d\'Ids vide, retour liste vide');
+      return new List<Work_Item__c>();
+    }
+
+    try {
+      Long startTime = System.currentTimeMillis();
+      LOGGER.debug('byIds', 'Recherche ' + workItemIds.size() + ' Work Items par Ids');
+
+      List<Work_Item__c> results = Database.query(
+        'SELECT ' + getListFields() + ' ' +
+        'FROM Work_Item__c ' +
+        'WHERE Id IN :workItemIds ' +
+        'ORDER BY Name'
+      );
+
+      Long elapsedTime = System.currentTimeMillis() - startTime;
+      LOGGER.info(
+        'byIds',
+        results.size() + ' Work Items trouvés en ' + elapsedTime + 'ms (Requested: ' + workItemIds.size() + ')'
+      );
+
+      return results;
+    } catch (Exception e) {
+      LOGGER.error('byIds', 'Erreur lors de la récupération par Ids', e);
       throw e;
     }
   }

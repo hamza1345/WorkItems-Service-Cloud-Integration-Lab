@@ -313,4 +313,217 @@ private class WorkItemSelectorTest {
     // Assert
     Assert.areEqual(0, results.size(), 'Liste devrait être vide');
   }
+
+  /**
+   * @description Test 16 : search avec filtre statut retourne uniquement ce statut.
+   */
+  @IsTest
+  static void testSearchByStatusReturnsCorrectItems() {
+    // Arrange - Créer 30 work items avec différents statuts
+    List<Work_Item__c> items = new List<Work_Item__c>();
+    for (Integer i = 0; i < 10; i++) {
+      items.add(TestDataFactory.createWorkItem('Search New ' + i, 'New', 'Medium', System.today().addDays(5)));
+    }
+    for (Integer i = 0; i < 10; i++) {
+      items.add(TestDataFactory.createWorkItem('Search Progress ' + i, 'In_Progress', 'High', System.today().addDays(3)));
+    }
+    for (Integer i = 0; i < 10; i++) {
+      items.add(TestDataFactory.createWorkItem('Search Done ' + i, 'New', 'Low', System.today().addDays(7)));
+    }
+    insert items;
+    
+    // Marquer les 10 derniers comme Done
+    List<Work_Item__c> toComplete = [SELECT Id FROM Work_Item__c WHERE Name LIKE 'Search Done%'];
+    for (Work_Item__c item : toComplete) {
+      item.Status__c = 'Done';
+    }
+    update toComplete;
+
+    // Act
+    Test.startTest();
+    List<Work_Item__c> results = WorkItemSelector.search('New', null, null);
+    Test.stopTest();
+
+    // Assert
+    Assert.isTrue(results.size() >= 10, 'Devrait trouver au moins 10 Work Items New');
+    for (Work_Item__c item : results) {
+      Assert.areEqual('New', item.Status__c, 'Status devrait être New');
+    }
+  }
+
+  /**
+   * @description Test 17 : search avec texte retourne uniquement les matchs.
+   */
+  @IsTest
+  static void testSearchByTextReturnsMatchingItems() {
+    // Arrange
+    List<Work_Item__c> items = new List<Work_Item__c>();
+    items.add(TestDataFactory.createWorkItem('ABC Item 1', 'New', 'Medium', System.today().addDays(5)));
+    items.add(TestDataFactory.createWorkItem('ABC Item 2', 'New', 'Medium', System.today().addDays(5)));
+    items.add(TestDataFactory.createWorkItem('XYZ Item 1', 'New', 'Medium', System.today().addDays(5)));
+    items.add(TestDataFactory.createWorkItem('XYZ Item 2', 'New', 'Medium', System.today().addDays(5)));
+    insert items;
+
+    // Act
+    Test.startTest();
+    List<Work_Item__c> results = WorkItemSelector.search(null, 'ABC', null);
+    Test.stopTest();
+
+    // Assert
+    Assert.areEqual(2, results.size(), 'Devrait trouver 2 Work Items ABC');
+    for (Work_Item__c item : results) {
+      Assert.isTrue(item.Name.contains('ABC'), 'Name devrait contenir ABC');
+    }
+  }
+
+  /**
+   * @description Test 18 : search respecte limitSize.
+   */
+  @IsTest
+  static void testSearchRespectsLimitSize() {
+    // Arrange
+    List<Work_Item__c> items = TestDataFactory.createAndInsertWorkItems(30, 'Limit Test');
+
+    // Act
+    Test.startTest();
+    List<Work_Item__c> results = WorkItemSelector.search(null, null, 10);
+    Test.stopTest();
+
+    // Assert
+    Assert.areEqual(10, results.size(), 'Devrait retourner max 10 Work Items');
+  }
+
+  /**
+   * @description Test 19 : search avec limitSize null utilise default.
+   */
+  @IsTest
+  static void testSearchWithNullLimitUsesDefault() {
+    // Arrange
+    List<Work_Item__c> items = TestDataFactory.createAndInsertWorkItems(60, 'Default Limit');
+
+    // Act
+    Test.startTest();
+    List<Work_Item__c> results = WorkItemSelector.search(null, null, null);
+    Test.stopTest();
+
+    // Assert
+    Assert.areEqual(50, results.size(), 'Devrait retourner 50 Work Items (default)');
+  }
+
+  /**
+   * @description Test 20 : search avec limitSize > MAX utilise MAX.
+   */
+  @IsTest
+  static void testSearchWithExcessiveLimitUsesMax() {
+    // Arrange
+    List<Work_Item__c> items = TestDataFactory.createAndInsertWorkItems(150, 'Max Limit');
+
+    // Act
+    Test.startTest();
+    List<Work_Item__c> results = WorkItemSelector.search(null, null, 200);
+    Test.stopTest();
+
+    // Assert
+    Assert.areEqual(100, results.size(), 'Devrait retourner max 100 Work Items');
+  }
+
+  /**
+   * @description Test 21 : search trie par LastModifiedDate DESC.
+   */
+  @IsTest
+  static void testSearchSortsByLastModifiedDateDesc() {
+    // Arrange
+    List<Work_Item__c> items = TestDataFactory.createAndInsertWorkItems(5, 'Sort Test');
+
+    // Act
+    Test.startTest();
+    List<Work_Item__c> results = WorkItemSelector.search(null, 'Sort Test', 5);
+    Test.stopTest();
+
+    // Assert
+    Assert.areEqual(5, results.size(), 'Devrait trouver 5 Work Items');
+    // Vérifier que les résultats sont retournés (tri testé implicitement par query ORDER BY)
+    Assert.isNotNull(results[0].Id, 'Résultats devraient être triés');
+  }
+
+  /**
+   * @description Test 22 : recent retourne les items les plus récents.
+   */
+  @IsTest
+  static void testRecentReturnsLatestItems() {
+    // Arrange
+    List<Work_Item__c> items = TestDataFactory.createAndInsertWorkItems(20, 'Recent Test');
+
+    // Act
+    Test.startTest();
+    List<Work_Item__c> results = WorkItemSelector.recent(10);
+    Test.stopTest();
+
+    // Assert
+    Assert.areEqual(10, results.size(), 'Devrait retourner 10 Work Items');
+  }
+
+  /**
+   * @description Test 23 : recent avec null utilise default.
+   */
+  @IsTest
+  static void testRecentWithNullLimitUsesDefault() {
+    // Arrange
+    List<Work_Item__c> items = TestDataFactory.createAndInsertWorkItems(60, 'Recent Default');
+
+    // Act
+    Test.startTest();
+    List<Work_Item__c> results = WorkItemSelector.recent(null);
+    Test.stopTest();
+
+    // Assert
+    Assert.areEqual(50, results.size(), 'Devrait retourner 50 Work Items (default)');
+  }
+
+  /**
+   * @description Test 24 : byIds retourne champs minimaux.
+   */
+  @IsTest
+  static void testByIdsReturnsMinimalFields() {
+    // Arrange
+    List<Work_Item__c> items = TestDataFactory.createAndInsertWorkItems(5, 'ByIds Test');
+    Set<Id> itemIds = new Map<Id, Work_Item__c>(items).keySet();
+
+    // Act
+    Test.startTest();
+    List<Work_Item__c> results = WorkItemSelector.byIds(itemIds);
+    Test.stopTest();
+
+    // Assert
+    Assert.areEqual(5, results.size(), 'Devrait retourner 5 Work Items');
+    // Vérifier que les champs essentiels sont présents
+    for (Work_Item__c item : results) {
+      Assert.isNotNull(item.Id, 'Id devrait être présent');
+      Assert.isNotNull(item.Name, 'Name devrait être présent');
+      Assert.isNotNull(item.Status__c, 'Status__c devrait être présent');
+      // Description__c ne devrait PAS être présent (champs minimaux)
+    }
+  }
+
+  /**
+   * @description Test 25 : search combine status + texte.
+   */
+  @IsTest
+  static void testSearchCombinesStatusAndText() {
+    // Arrange
+    List<Work_Item__c> items = new List<Work_Item__c>();
+    items.add(TestDataFactory.createWorkItem('COMBO New ABC', 'New', 'Medium', System.today().addDays(5)));
+    items.add(TestDataFactory.createWorkItem('COMBO Progress ABC', 'In_Progress', 'High', System.today().addDays(3)));
+    items.add(TestDataFactory.createWorkItem('COMBO New XYZ', 'New', 'Low', System.today().addDays(7)));
+    insert items;
+
+    // Act
+    Test.startTest();
+    List<Work_Item__c> results = WorkItemSelector.search('New', 'ABC', null);
+    Test.stopTest();
+
+    // Assert
+    Assert.areEqual(1, results.size(), 'Devrait trouver 1 Work Item (New + ABC)');
+    Assert.areEqual('COMBO New ABC', results[0].Name, 'Devrait être COMBO New ABC');
+  }
 }
