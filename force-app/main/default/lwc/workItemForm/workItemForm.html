@@ -1,0 +1,82 @@
+<template>
+    <lightning-card title={cardTitle} icon-name="standard:work_order_item">
+        <div class="slds-p-around_medium">
+            <!-- Form -->
+            <lightning-record-edit-form
+                object-api-name="Work_Item__c"
+                record-id={recordId}
+                onsuccess={handleSuccess}
+                onerror={handleError}
+                onsubmit={handleSubmit}
+            >
+                <!-- Title -->
+                <lightning-input-field
+                    field-name="Title__c"
+                    required
+                ></lightning-input-field>
+
+                <!-- Description -->
+                <lightning-input-field
+                    field-name="Description__c"
+                ></lightning-input-field>
+
+                <!-- Status -->
+                <lightning-input-field
+                    field-name="Status__c"
+                    required
+                ></lightning-input-field>
+
+                <!-- Priority -->
+                <lightning-input-field
+                    field-name="Priority__c"
+                    required
+                ></lightning-input-field>
+
+                <!-- Due Date -->
+                <lightning-input-field
+                    field-name="Due_Date__c"
+                    required
+                ></lightning-input-field>
+
+                <!-- Owner -->
+                <lightning-input-field
+                    field-name="Owner__c"
+                ></lightning-input-field>
+
+                <!-- Action Buttons -->
+                <div class="slds-m-top_medium slds-text-align_right">
+                    <lightning-button
+                        label="Cancel"
+                        onclick={handleCancel}
+                        class="slds-m-right_small"
+                    ></lightning-button>
+                    <lightning-button
+                        variant="brand"
+                        type="submit"
+                        label="Save"
+                    ></lightning-button>
+                </div>
+            </lightning-record-edit-form>
+
+            <!-- Loading Spinner -->
+            <template if:true={isLoading}>
+                <lightning-spinner alternative-text="Saving..." size="medium"></lightning-spinner>
+            </template>
+
+            <!-- Error Message -->
+            <template if:true={errorMessage}>
+                <div class="slds-m-top_small">
+                    <div class="slds-notify slds-notify_alert slds-alert_error" role="alert">
+                        <span class="slds-assistive-text">Error</span>
+                        <h2>{errorMessage}</h2>
+                        <template if:true={correlationId}>
+                            <p class="slds-m-top_x-small slds-text-body_small">
+                                Reference: {correlationId}
+                            </p>
+                        </template>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </lightning-card>
+</template>

@@ -1,0 +1,59 @@
+<template>
+    <lightning-card title="Work Items" icon-name="standard:work_order">
+        <!-- Filters Section -->
+        <div slot="actions">
+            <lightning-combobox
+                label="Status"
+                value={selectedStatus}
+                options={statusOptions}
+                onchange={handleStatusChange}
+                placeholder="All Statuses"
+            ></lightning-combobox>
+        </div>
+
+        <div class="slds-p-horizontal_small">
+            <!-- Search Bar -->
+            <lightning-input
+                type="search"
+                label="Search"
+                value={searchTerm}
+                onchange={handleSearchChange}
+                placeholder="Search work items..."
+                class="slds-m-bottom_small"
+            ></lightning-input>
+
+            <!-- Data Table -->
+            <template if:true={workItems.data}>
+                <lightning-datatable
+                    key-field="Id"
+                    data={workItems.data}
+                    columns={columns}
+                    onrowaction={handleRowAction}
+                    hide-checkbox-column
+                ></lightning-datatable>
+            </template>
+
+            <!-- Loading Spinner -->
+            <template if:true={workItems.loading}>
+                <lightning-spinner alternative-text="Loading..." size="medium"></lightning-spinner>
+            </template>
+
+            <!-- Error Message -->
+            <template if:true={workItems.error}>
+                <div class="slds-m-top_small">
+                    <c-error-panel
+                        error={workItems.error}
+                        friendly-message="Unable to load work items"
+                    ></c-error-panel>
+                </div>
+            </template>
+
+            <!-- No Data Message -->
+            <template if:true={noData}>
+                <div class="slds-text-align_center slds-m-vertical_large">
+                    <p class="slds-text-color_weak">No work items found</p>
+                </div>
+            </template>
+        </div>
+    </lightning-card>
+</template>
